@@ -15,7 +15,7 @@ use crate::db::Database;
 
 /// Create all routes for the API
 pub fn routes(pool: PgPool) -> Router {
-    let db = Database::new(pool);
+    let db = Database::from_pool(pool);
     
     // Create repositories
     let product_repository = ProductRepository::new(db.clone());

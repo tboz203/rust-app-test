@@ -8,6 +8,7 @@ use crate::models::product::{Product, ProductResponse};
 use anyhow::Result;
 
 /// Repository for category operations
+#[derive(Clone)]
 pub struct CategoryRepository {
     db: Database,
 }
@@ -30,7 +31,7 @@ impl CategoryRepository {
             "#,
             req.name
         )
-        .fetch_optional(self.db.pool())
+        .fetch_optional(&self.db.pool())
         .await?;
 
         if existing.is_some() {
@@ -51,7 +52,7 @@ impl CategoryRepository {
             req.name,
             req.description
         )
-        .fetch_one(self.db.pool())
+        .fetch_one(&self.db.pool())
         .await?;
 
         Ok(CategoryResponse {
@@ -72,7 +73,7 @@ impl CategoryRepository {
             "#,
             id
         )
-        .fetch_optional(self.db.pool())
+        .fetch_optional(&self.db.pool())
         .await?
         .ok_or_else(|| ApiError::not_found("Category", id))?;
 
@@ -114,7 +115,7 @@ impl CategoryRepository {
                 created_at: row.created_at,
                 updated_at: row.updated_at,
             })
-            .fetch_all(self.db.pool())
+            .fetch_all(&self.db.pool())
             .await?
         } else {
             sqlx::query_as!(
@@ -123,7 +124,7 @@ impl CategoryRepository {
                 SELECT * FROM categories ORDER BY name
                 "#
             )
-            .fetch_all(self.db.pool())
+            .fetch_all(&self.db.pool())
             .await?
             .into_iter()
             .map(|c| CategoryWithProductsResponse {
@@ -154,7 +155,7 @@ impl CategoryRepository {
             "#,
             id
         )
-        .fetch_optional(self.db.pool())
+        .fetch_optional(&self.db.pool())
         .await?
         .ok_or_else(|| ApiError::not_found("Category", id))?;
 
@@ -168,7 +169,7 @@ impl CategoryRepository {
                     name,
                     id
                 )
-                .fetch_optional(self.db.pool())
+                .fetch_optional(&self.db.pool())
                 .await?;
 
                 if existing.is_some() {
@@ -196,7 +197,7 @@ impl CategoryRepository {
             req.description,
             id
         )
-        .fetch_one(self.db.pool())
+        .fetch_one(&self.db.pool())
         .await?;
 
         Ok(CategoryResponse {
@@ -216,7 +217,7 @@ impl CategoryRepository {
             "#,
             id
         )
-        .execute(self.db.pool())
+        .execute(&self.db.pool())
         .await?;
 
         if result.rows_affected() == 0 {
@@ -235,7 +236,7 @@ impl CategoryRepository {
             "#,
             category_id
         )
-        .fetch_one(self.db.pool())
+        .fetch_one(&self.db.pool())
         .await?;
 
         if !category_exists.unwrap_or(false) {
@@ -254,7 +255,7 @@ impl CategoryRepository {
             "#,
             category_id
         )
-        .fetch_all(self.db.pool())
+        .fetch_all(&self.db.pool())
         .await?;
 
         // Get categories for each product
@@ -274,7 +275,7 @@ impl CategoryRepository {
                 id: row.id,
                 name: row.name,
             })
-            .fetch_all(self.db.pool())
+            .fetch_all(&self.db.pool())
             .await?;
 
             product_responses.push(ProductResponse {

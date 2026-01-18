@@ -1,15 +1,17 @@
+mod common;
+
 #[cfg(test)]
 mod product_api_tests {
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
-    use product_catalog_api::models::product::{CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest};
+    // Import from crate root using the lib.rs exports
+    use crate::models::product::{CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest};
     use tower::ServiceExt;
 
+    // Import from common module
     use crate::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
-
-    mod common;
 
     #[tokio::test]
     async fn test_list_products() {

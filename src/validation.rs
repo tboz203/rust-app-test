@@ -1,11 +1,6 @@
 pub mod product;
 
-use axum::http::StatusCode;
 use axum::Json;
-use axum::response::{IntoResponse, Response};
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use serde_json::json;
 use validator::Validate;
 
 use crate::error::ApiError;
@@ -43,6 +38,7 @@ pub async fn validate_json<T>(json: Json<T>) -> Result<T, ApiError>
 where
     T: Validate,
 {
-    validate_request(&json)?;
+    // Extract inner value and validate it, not the Json wrapper
+    validate_request(&json.0)?;
     Ok(json.0)
 }

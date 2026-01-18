@@ -1,40 +1,39 @@
-use crate::error::ApiError;
-use crate::models::product::{CreateProductRequest, UpdateProductRequest};
+use bigdecimal::{BigDecimal, Signed, Zero};
+use validator::ValidationError;
 
-/// Validate a create product request
-pub fn validate_create_product(req: &CreateProductRequest) -> Result<(), ApiError> {
-    // Additional validation beyond struct-level validation can be added here
-    
-    // Ensure there's at least one category for a new product
-    if req.category_ids.is_empty() {
-        return Err(ApiError::Validation("Product must belong to at least one category".to_string()));
+
+/// Validates that a Decimal value is positive (greater than zero)
+pub fn validate_positive_decimal(decimal: &BigDecimal) -> Result<(), ValidationError> {
+    if decimal.is_negative() || decimal.is_zero() {
+        let mut error = ValidationError::new("positive_decimal");
+        error.message = Some(std::borrow::Cow::from("Price must be a positive number"));
+        return Err(error);
     }
-
-    // Price validation (additional to the struct validation)
-    if req.price.is_sign_negative() || req.price.is_zero() {
-        return Err(ApiError::Validation("Price must be positive".to_string()));
-    }
-
     Ok(())
 }
 
-/// Validate an update product request
-pub fn validate_update_product(req: &UpdateProductRequest) -> Result<(), ApiError> {
-    // Additional validation beyond struct-level validation
-    
-    // Check that price is positive if provided
-    if let Some(price) = req.price {
-        if price.is_sign_negative() || price.is_zero() {
-            return Err(ApiError::Validation("Price must be positive".to_string()));
-        }
+/// Validates that an Option<Decimal> value is positive if it exists
+pub fn validate_optional_decimal(decimal: &Option<BigDecimal>) -> Result<(), ValidationError> {
+    match decimal {
+        Some(d) => validate_positive_decimal(d),
+        None => Ok(()),
     }
-    
-    // Ensure category list isn't empty if provided
-    if let Some(category_ids) = &req.category_ids {
-        if category_ids.is_empty() {
-            return Err(ApiError::Validation("Product must belong to at least one category".to_string()));
-        }
+}
+
+/// Validates that a vector is not empty
+pub fn validate_non_empty_vec<T>(vec: &[T]) -> Result<(), ValidationError> {
+    if vec.is_empty() {
+        let mut error = ValidationError::new("non_empty");
+        error.message = Some(std::borrow::Cow::from("Must contain at least one item"));
+        return Err(error);
     }
-    
     Ok(())
+}
+
+/// Validates that an optional vector is not empty if it exists
+pub fn validate_optional_non_empty_vec<T>(vec: &Option<Vec<T>>) -> Result<(), ValidationError> {
+    match vec {
+        Some(v) => validate_non_empty_vec(v),
+        None => Ok(()),
+    }
 }

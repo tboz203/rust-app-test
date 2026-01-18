@@ -8,7 +8,7 @@ use crate::{
     error::ApiError,
     models::product::{CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse, UpdateProductRequest},
     repository::product::ProductRepository,
-    validation::{product::validate_create_product, product::validate_update_product, validate_json},
+    validation::validate_json,
 };
 
 /// List all products with pagination
@@ -55,7 +55,6 @@ pub async fn create_product(
     
     // Validate the request
     let product_req = validate_json(payload).await?;
-    validate_create_product(&product_req)?;
     
     // Create the product
     let product = repository.create_product(product_req).await?;
@@ -77,7 +76,6 @@ pub async fn update_product(
     
     // Validate the request
     let product_req = validate_json(payload).await?;
-    validate_update_product(&product_req)?;
     
     // Update the product
     let product = repository.update_product(id, product_req).await?;

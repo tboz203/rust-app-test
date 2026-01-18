@@ -1,16 +1,17 @@
+mod common;
+
 #[cfg(test)]
 mod category_api_tests {
     use axum::{
         body::Body,
         http::{Request, StatusCode},
     };
-    use product_catalog_api::models::category::{CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest};
-    use product_catalog_api::models::product::ProductResponse;
+    use crate::models::category::{CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest};
+    use crate::models::product::ProductResponse;
     use tower::ServiceExt;
 
+    // Import from common module
     use crate::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
-
-    mod common;
 
     #[tokio::test]
     async fn test_list_categories() {

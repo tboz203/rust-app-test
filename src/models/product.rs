@@ -1,15 +1,17 @@
 use chrono::{DateTime, Utc};
-use rust_decimal::Decimal;
+use bigdecimal::BigDecimal;
 use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 use validator::Validate;
+
+use crate::validation::product::{validate_non_empty_vec, validate_optional_decimal, validate_optional_non_empty_vec, validate_positive_decimal};
 
 #[derive(Debug, Serialize, FromRow)]
 pub struct Product {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub price: Decimal,
+    pub price: BigDecimal,
     pub sku: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
@@ -26,10 +28,11 @@ pub struct CreateProductRequest {
     #[validate(length(min = 1, max = 255, message = "Product name cannot be empty and must be less than 256 characters"))]
     pub name: String,
     pub description: Option<String>,
-    #[validate(range(min = 0.0, message = "Price must be a positive number"))]
-    pub price: Decimal,
+    #[validate(custom = "validate_positive_decimal")]
+    pub price: BigDecimal,
     #[validate(length(max = 50, message = "SKU must be less than 51 characters"))]
     pub sku: Option<String>,
+    #[validate(custom = "validate_non_empty_vec")]
     pub category_ids: Vec<i32>,
 }
 
@@ -38,10 +41,13 @@ pub struct UpdateProductRequest {
     #[validate(length(min = 1, max = 255, message = "Product name must be less than 256 characters"))]
     pub name: Option<String>,
     pub description: Option<String>,
-    #[validate(range(min = 0.0, message = "Price must be a positive number"))]
-    pub price: Option<Decimal>,
+    // Don't validate the Option wrapper, but validate the inner Decimal if it exists
+    #[validate(custom(function = "validate_optional_decimal"))]
+    pub price: Option<BigDecimal>,
     #[validate(length(max = 50, message = "SKU must be less than 51 characters"))]
     pub sku: Option<String>,
+    // Don't validate the Option wrapper, but validate the inner Vec if it exists
+    #[validate(custom(function = "validate_optional_non_empty_vec"))]
     pub category_ids: Option<Vec<i32>>,
 }
 
@@ -50,7 +56,7 @@ pub struct ProductResponse {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub price: Decimal,
+    pub price: BigDecimal,
     pub sku: Option<String>,
     pub categories: Vec<CategoryBrief>,
     pub created_at: DateTime<Utc>,

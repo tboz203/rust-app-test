@@ -63,7 +63,15 @@ GRANT ALL PRIVILEGES ON DATABASE product_catalog TO catalog_user;
 Create a `.env` file in the project root with the following variables:
 
 ```
-DATABASE_URL=postgres://catalog_user:your_password@localhost/product_catalog
+# Database configuration
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=catalog_user
+POSTGRES_PASSWORD=your_password
+POSTGRES_DB=product_catalog
+
+# Server configuration
+SERVER_HOST=localhost
 SERVER_PORT=3000
 RUST_LOG=info
 ```
@@ -71,9 +79,7 @@ RUST_LOG=info
 ### 4. Run database migrations
 
 ```bash
-cargo run --bin migrate
-# Or if using sqlx-cli:
-# sqlx migrate run
+sqlx migrate run
 ```
 
 ### 5. Build and run the application
@@ -91,7 +97,12 @@ The application can be configured using environment variables:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `DATABASE_URL` | PostgreSQL connection URL | - |
+| `POSTGRES_HOST` | Database server hostname | localhost |
+| `POSTGRES_PORT` | Database server port | 5432 |
+| `POSTGRES_USER` | Database username | postgres |
+| `POSTGRES_PASSWORD` | Database password | postgres |
+| `POSTGRES_DB` | Database name | product_catalog |
+| `SERVER_HOST` | Host to bind the server to | 127.0.0.1 |
 | `SERVER_PORT` | Port for the HTTP server | 3000 |
 | `RUST_LOG` | Log level (error, warn, info, debug, trace) | info |
 | `DATABASE_MAX_CONNECTIONS` | Maximum database connections | 5 |

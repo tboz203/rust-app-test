@@ -19,22 +19,22 @@ impl Database {
 
         Ok(Self { pool })
     }
+    
+    /// Create a new database instance from an existing pool
+    pub fn from_pool(pool: PgPool) -> Self {
+        Self { pool }
+    }
 
     /// Get the connection pool
     pub fn pool(&self) -> PgPool {
         self.pool.clone()
     }
 
-    /// Run database migrations
-    pub async fn run_migrations(&self) -> Result<()> {
-        sqlx::migrate!("./migrations").run(&self.pool).await?;
-        Ok(())
-    }
-
     /// Execute a transaction
-    pub async fn transaction<F, R, E>(&self, f: F) -> Result<R, E>
+    pub async fn transaction<F, Fut, R, E>(&self, f: F) -> Result<R, E>
     where
-        F: for<'c> FnOnce(&'c mut sqlx::Transaction<'_, sqlx::Postgres>) -> Result<R, E> + Send + 'static,
+        F: for<'c> FnOnce(&'c mut sqlx::Transaction<'_, sqlx::Postgres>) -> Fut + Send + 'static,
+        Fut: std::future::Future<Output = Result<R, E>> + Send,
         R: Send + 'static,
         E: From<sqlx::Error> + Send + 'static,
     {

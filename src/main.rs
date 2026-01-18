@@ -38,11 +38,6 @@ async fn main() -> anyhow::Result<()> {
         .connect(&config.database_url)
         .await?;
 
-    // Run migrations
-    sqlx::migrate!("./migrations")
-        .run(&pool)
-        .await?;
-
     // Build our application with routes
     let app = Router::new()
         .nest("/api", api::routes(pool.clone()))
@@ -52,9 +47,9 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
     
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    let listener = tokio::net::TcpListener::bind(addr).await?;
+    tracing::info!("Listening on {}", addr);
+    axum::serve(listener, app).await?;
     
     Ok(())
 }

@@ -5,9 +5,11 @@ use crate::models::product::{
     ProductQueryParams, ProductResponse, UpdateProductRequest,
 };
 use anyhow::Result;
+use bigdecimal::BigDecimal;
 use sqlx::{postgres::PgRow, query_builder::QueryBuilder, Postgres, Row};
 
 /// Repository for product operations
+#[derive(Clone)]
 pub struct ProductRepository {
     db: Database,
 }
@@ -21,7 +23,7 @@ impl ProductRepository {
     /// Create a new product
     pub async fn create_product(&self, req: CreateProductRequest) -> Result<ProductResponse, ApiError> {
         self.db
-            .transaction::<_, ProductResponse, ApiError>(|tx| async move {
+            .transaction::<_, _, ProductResponse, ApiError>(|tx| async move {
                 // Insert product
                 let product = sqlx::query_as!(
                     Product,
@@ -76,11 +78,11 @@ impl ProductRepository {
             "#,
             id
         )
-        .fetch_optional(self.db.pool())
+        .fetch_optional(&self.db.pool())
         .await?
         .ok_or_else(|| ApiError::not_found("Product", id))?;
 
-        let categories = self.get_product_categories(id, self.db.pool()).await?;
+        let categories = self.get_product_categories(id, &self.db.pool()).await?;
 
         Ok(ProductResponse {
             id: product.id,
@@ -101,15 +103,14 @@ impl ProductRepository {
     ) -> Result<ProductListResponse, ApiError> {
         // Base query with pagination
         let mut conditions = Vec::new();
-        let mut condition_params: Vec<&(dyn sqlx::types::Type<sqlx::Postgres> + Sync)> = Vec::new();
         let mut param_index = 1;
-
+        
         // Add category filter if provided
-        if let Some(category_id) = params.category_id {
+        let category_id_param = params.category_id;
+        if let Some(category_id) = category_id_param {
             conditions.push(format!(
                 "id IN (SELECT product_id FROM product_categories WHERE category_id = ${param_index})"
             ));
-            condition_params.push(&category_id);
             param_index += 1;
         }
 
@@ -122,10 +123,14 @@ impl ProductRepository {
 
         // Count total products matching filters
         let count_sql = format!("SELECT COUNT(*) FROM products {}", where_clause);
-        let total: i64 = sqlx::query_scalar(&count_sql)
-            .bind_all(&condition_params)
-            .fetch_one(self.db.pool())
-            .await?;
+        let mut count_query = sqlx::query_scalar::<_, i64>(&count_sql);
+        
+        // Bind parameters
+        if let Some(category_id) = category_id_param {
+            count_query = count_query.bind(category_id);
+        }
+        
+        let total = count_query.fetch_one(self.db.pool()).await?;
 
         // Get products with pagination
         let limit = params.page_size();
@@ -139,8 +144,10 @@ impl ProductRepository {
         );
 
         let mut product_query = sqlx::query(&products_sql);
-        for param in condition_params {
-            product_query = product_query.bind(param);
+        
+        // Bind parameters
+        if let Some(category_id) = category_id_param {
+            product_query = product_query.bind(category_id);
         }
         product_query = product_query.bind(limit).bind(offset);
 
@@ -154,13 +161,13 @@ impl ProductRepository {
                 created_at: row.try_get("created_at")?,
                 updated_at: row.try_get("updated_at")?,
             }))
-            .fetch_all(self.db.pool())
+            .fetch_all(&self.db.pool())
             .await?;
 
         // Fetch categories for each product
         let mut product_responses = Vec::with_capacity(products.len());
         for product in products {
-            let categories = self.get_product_categories(product.id, self.db.pool()).await?;
+            let categories = self.get_product_categories(product.id, &self.db.pool()).await?;
             product_responses.push(ProductResponse {
                 id: product.id,
                 name: product.name,
@@ -188,7 +195,7 @@ impl ProductRepository {
         req: UpdateProductRequest,
     ) -> Result<ProductResponse, ApiError> {
         self.db
-            .transaction::<_, ProductResponse, ApiError>(|tx| async move {
+            .transaction::<_, _, ProductResponse, ApiError>(|tx| async move {
                 // Check if product exists
                 let product = sqlx::query_as!(
                     Product,
@@ -274,7 +281,7 @@ impl ProductRepository {
             "#,
             id
         )
-        .execute(self.db.pool())
+        .execute(&self.db.pool())
         .await?;
 
         if result.rows_affected() == 0 {

@@ -14,14 +14,22 @@ pub struct Category {
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateCategoryRequest {
-    #[validate(length(min = 1, max = 100, message = "Category name cannot be empty and must be less than 101 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Category name cannot be empty and must be less than 101 characters"
+    ))]
     pub name: String,
     pub description: Option<String>,
 }
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct UpdateCategoryRequest {
-    #[validate(length(min = 1, max = 100, message = "Category name must be less than 101 characters"))]
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Category name cannot be empty and must be less than 101 characters"
+    ))]
     pub name: Option<String>,
     pub description: Option<String>,
 }

@@ -3,12 +3,12 @@ use axum::{
     Json,
 };
 use tracing::{info, instrument};
+use validator::Validate;
 
 use crate::{
     error::ApiError,
     models::product::{CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse, UpdateProductRequest},
     repository::product::ProductRepository,
-    validation::validate_json,
 };
 
 /// List all products with pagination
@@ -46,19 +46,19 @@ pub async fn get_product(
 /// Create a new product
 ///
 /// POST /api/products
-#[instrument(skip(repository, payload))]
+#[instrument(skip(repository, request))]
 pub async fn create_product(
     State(repository): State<ProductRepository>,
-    payload: Json<CreateProductRequest>,
+    Json(request): Json<CreateProductRequest>,
 ) -> Result<Json<ProductResponse>, ApiError> {
-    info!("Creating new product: {}", payload.name);
+    info!("Creating new product: {}", request.name);
     
     // Validate the request
-    let product_req = validate_json(payload).await?;
-    
+    request.validate()?;
+
     // Create the product
-    let product = repository.create_product(product_req).await?;
-    
+    let product = repository.create_product(request).await?;
+
     info!("Created product with ID: {}", product.id);
     Ok(Json(product))
 }
@@ -66,20 +66,20 @@ pub async fn create_product(
 /// Update an existing product
 ///
 /// PUT /api/products/:id
-#[instrument(skip(repository, payload))]
+#[instrument(skip(repository, request))]
 pub async fn update_product(
     State(repository): State<ProductRepository>,
     Path(id): Path<i32>,
-    payload: Json<UpdateProductRequest>,
+    Json(request): Json<UpdateProductRequest>,
 ) -> Result<Json<ProductResponse>, ApiError> {
     info!("Updating product with ID: {}", id);
     
     // Validate the request
-    let product_req = validate_json(payload).await?;
+    request.validate()?;
     
     // Update the product
-    let product = repository.update_product(id, product_req).await?;
-    
+    let product = repository.update_product(id, request).await?;
+
     info!("Updated product: {}", product.name);
     Ok(Json(product))
 }

@@ -1,11 +1,20 @@
 use crate::db::Database;
+use crate::entity::{categories, product_categories, products};
+use crate::entity::prelude::{Category, Product, ProductCategory};
 use crate::error::ApiError;
 use crate::models::category::{
-    Category, CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse,
+    Category as CategoryModel, CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse,
     CreateCategoryRequest, UpdateCategoryRequest,
 };
-use crate::models::product::{Product, ProductResponse};
+use crate::models::product::{Product as ProductModel, ProductResponse};
 use anyhow::Result;
+use sea_orm::{
+    ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, 
+    RelationTrait, Set, TransactionTrait, QuerySelect, Condition, PaginatorTrait,
+};
+use std::str::FromStr;
+use sqlx::types::BigDecimal;
+use sea_orm::prelude::Decimal;
 
 /// Repository for category operations
 #[derive(Clone)]
@@ -24,65 +33,80 @@ impl CategoryRepository {
         &self,
         req: CreateCategoryRequest,
     ) -> Result<CategoryResponse, ApiError> {
-        // Check for duplicate category name
-        let existing = sqlx::query_scalar!(
-            r#"
-            SELECT 1 FROM categories WHERE name = $1
-            "#,
-            req.name
-        )
-        .fetch_optional(&self.db.pool())
-        .await?;
-
-        if existing.is_some() {
-            return Err(ApiError::Conflict(format!(
-                "Category with name '{}' already exists",
-                req.name
-            )));
-        }
-
-        // Create category
-        let category = sqlx::query_as!(
-            Category,
-            r#"
-            INSERT INTO categories (name, description)
-            VALUES ($1, $2)
-            RETURNING *
-            "#,
-            req.name,
-            req.description
-        )
-        .fetch_one(&self.db.pool())
-        .await?;
-
-        Ok(CategoryResponse {
-            id: category.id,
-            name: category.name,
-            description: category.description,
-            created_at: category.created_at,
-            updated_at: category.updated_at,
-        })
+        let conn = self.db.conn();
+        
+        // Using Sea-ORM's transaction
+        let result = conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    // Create category active model
+                    let category = categories::ActiveModel {
+                        name: Set(req.name.clone()),
+                        description: Set(req.description.clone()),
+                        ..Default::default()
+                    };
+                    
+                    // Insert category
+                    let category_model = category
+                        .insert(txn)
+                        .await
+                        .map_err(ApiError::SeaOrmDatabase)?;
+                    
+                    // Convert timezone-aware datetime to Utc
+                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                        category_model.created_at.naive_utc(),
+                        chrono::Utc,
+                    );
+                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                        category_model.updated_at.naive_utc(),
+                        chrono::Utc,
+                    );
+                    
+                    Ok(CategoryResponse {
+                        id: category_model.id,
+                        name: category_model.name,
+                        description: category_model.description,
+                        created_at,
+                        updated_at,
+                    })
+                })
+            })
+            .await
+            .map_err(|e| match e {
+                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Transaction(api_err) => api_err,
+            })?;
+            
+        Ok(result)
     }
 
     /// Get a category by ID
     pub async fn get_category(&self, id: i32) -> Result<CategoryResponse, ApiError> {
-        let category = sqlx::query_as!(
-            Category,
-            r#"
-            SELECT * FROM categories WHERE id = $1
-            "#,
-            id
-        )
-        .fetch_optional(&self.db.pool())
-        .await?
-        .ok_or_else(|| ApiError::not_found("Category", id))?;
-
+        let conn = self.db.conn();
+        
+        // Find category by ID
+        let category = Category::find_by_id(id)
+            .one(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?
+            .ok_or_else(|| ApiError::not_found_simple("Category not found"))?;
+        
+        // Convert timezone-aware datetime to Utc
+        let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
+            category.created_at.naive_utc(),
+            chrono::Utc,
+        );
+        let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
+            category.updated_at.naive_utc(),
+            chrono::Utc,
+        );
+        
         Ok(CategoryResponse {
             id: category.id,
             name: category.name,
             description: category.description,
-            created_at: category.created_at,
-            updated_at: category.updated_at,
+            created_at,
+            updated_at,
         })
     }
 
@@ -91,54 +115,47 @@ impl CategoryRepository {
         &self,
         params: CategoryQueryParams,
     ) -> Result<CategoryListResponse, ApiError> {
-        let categories = if params.include_product_count() {
-            sqlx::query!(
-                r#"
-                SELECT 
-                    c.*,
-                    COUNT(pc.product_id) AS product_count
-                FROM 
-                    categories c
-                LEFT JOIN 
-                    product_categories pc ON c.id = pc.category_id
-                GROUP BY 
-                    c.id
-                ORDER BY 
-                    c.name
-                "#
-            )
-            .map(|row| CategoryWithProductsResponse {
-                id: row.id,
-                name: row.name,
-                description: row.description,
-                product_count: row.product_count.unwrap_or(0),
-                created_at: row.created_at,
-                updated_at: row.updated_at,
-            })
-            .fetch_all(&self.db.pool())
-            .await?
-        } else {
-            sqlx::query_as!(
-                Category,
-                r#"
-                SELECT * FROM categories ORDER BY name
-                "#
-            )
-            .fetch_all(&self.db.pool())
-            .await?
-            .into_iter()
-            .map(|c| CategoryWithProductsResponse {
-                id: c.id,
-                name: c.name,
-                description: c.description,
-                product_count: 0, // Not counting products
-                created_at: c.created_at,
-                updated_at: c.updated_at,
-            })
-            .collect()
-        };
-
-        Ok(CategoryListResponse { categories })
+        let conn = self.db.conn();
+        
+        let categories = Category::find()
+            .order_by_asc(categories::Column::Name)
+            .all(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?;
+            
+        let mut category_responses = Vec::with_capacity(categories.len());
+        
+        for category in categories {
+            // If requested, get product count for each category
+            let product_count = if params.include_product_count() {
+                self.count_products_in_category(category.id).await?
+            } else {
+                0 // Default value if not requested
+            };
+            
+            // Convert timezone-aware datetime to Utc
+            let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                category.created_at.naive_utc(),
+                chrono::Utc,
+            );
+            let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                category.updated_at.naive_utc(),
+                chrono::Utc,
+            );
+            
+            category_responses.push(CategoryWithProductsResponse {
+                id: category.id,
+                name: category.name,
+                description: category.description,
+                product_count,
+                created_at,
+                updated_at,
+            });
+        }
+        
+        Ok(CategoryListResponse {
+            categories: category_responses,
+        })
     }
 
     /// Update a category
@@ -147,149 +164,204 @@ impl CategoryRepository {
         id: i32,
         req: UpdateCategoryRequest,
     ) -> Result<CategoryResponse, ApiError> {
-        // Check if category exists
-        let category = sqlx::query_as!(
-            Category,
-            r#"
-            SELECT * FROM categories WHERE id = $1
-            "#,
-            id
-        )
-        .fetch_optional(&self.db.pool())
-        .await?
-        .ok_or_else(|| ApiError::not_found("Category", id))?;
-
-        // Check for name conflict if name is being updated
-        if let Some(name) = &req.name {
-            if name != &category.name {
-                let existing = sqlx::query_scalar!(
-                    r#"
-                    SELECT 1 FROM categories WHERE name = $1 AND id != $2
-                    "#,
-                    name,
-                    id
-                )
-                .fetch_optional(&self.db.pool())
-                .await?;
-
-                if existing.is_some() {
-                    return Err(ApiError::Conflict(format!(
-                        "Category with name '{}' already exists",
-                        name
-                    )));
-                }
-            }
-        }
-
-        // Update category
-        let updated_category = sqlx::query_as!(
-            Category,
-            r#"
-            UPDATE categories
-            SET 
-                name = COALESCE($1, name),
-                description = COALESCE($2, description),
-                updated_at = NOW()
-            WHERE id = $3
-            RETURNING *
-            "#,
-            req.name,
-            req.description,
-            id
-        )
-        .fetch_one(&self.db.pool())
-        .await?;
-
-        Ok(CategoryResponse {
-            id: updated_category.id,
-            name: updated_category.name,
-            description: updated_category.description,
-            created_at: updated_category.created_at,
-            updated_at: updated_category.updated_at,
-        })
+        let conn = self.db.conn();
+        
+        // Using Sea-ORM's transaction
+        let result = conn
+            .transaction(|txn| {
+                Box::pin(async move {
+                    // Find category by ID
+                    let category = Category::find_by_id(id)
+                        .one(txn)
+                        .await
+                        .map_err(ApiError::SeaOrmDatabase)?
+                        .ok_or_else(|| ApiError::not_found_simple("Category not found"))?;
+                    
+                    // Create active model for update
+                    let mut category_active: categories::ActiveModel = category.clone().into();
+                    
+                    // Update fields if provided
+                    if let Some(name) = req.name {
+                        category_active.name = Set(name);
+                    }
+                    
+                    if let Some(description) = req.description {
+                        category_active.description = Set(Some(description));
+                    }
+                    
+                    // Update the category
+                    let category_model = category_active
+                        .update(txn)
+                        .await
+                        .map_err(ApiError::SeaOrmDatabase)?;
+                    
+                    // Convert timezone-aware datetime to Utc
+                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                        category_model.created_at.naive_utc(),
+                        chrono::Utc,
+                    );
+                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                        category_model.updated_at.naive_utc(),
+                        chrono::Utc,
+                    );
+                    
+                    Ok(CategoryResponse {
+                        id: category_model.id,
+                        name: category_model.name,
+                        description: category_model.description,
+                        created_at,
+                        updated_at,
+                    })
+                })
+            })
+            .await
+            .map_err(|e| match e {
+                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Transaction(api_err) => api_err,
+            })?;
+            
+        Ok(result)
     }
 
     /// Delete a category
     pub async fn delete_category(&self, id: i32) -> Result<(), ApiError> {
-        let result = sqlx::query!(
-            r#"
-            DELETE FROM categories WHERE id = $1
-            "#,
-            id
-        )
-        .execute(&self.db.pool())
-        .await?;
-
-        if result.rows_affected() == 0 {
-            return Err(ApiError::not_found("Category", id));
-        }
-
-        Ok(())
+        let conn = self.db.conn();
+        
+        // Using Sea-ORM's transaction
+        conn.transaction(|txn| {
+            Box::pin(async move {
+                // Check if category exists
+                let category_exists = Category::find_by_id(id)
+                    .one(txn)
+                    .await
+                    .map_err(ApiError::SeaOrmDatabase)?
+                    .is_some();
+                
+                if !category_exists {
+                    return Err(ApiError::not_found_simple("Category not found"));
+                }
+                
+                // Delete product categories
+                product_categories::Entity::delete_many()
+                    .filter(product_categories::Column::CategoryId.eq(id))
+                    .exec(txn)
+                    .await
+                    .map_err(ApiError::SeaOrmDatabase)?;
+                
+                // Delete category
+                Category::delete_by_id(id)
+                    .exec(txn)
+                    .await
+                    .map_err(ApiError::SeaOrmDatabase)?;
+                
+                Ok(())
+            })
+        })
+        .await
+        .map_err(|e| match e {
+            sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+            sea_orm::TransactionError::Transaction(api_err) => api_err,
+        })
     }
 
     /// Get products by category ID
     pub async fn get_products_by_category(&self, category_id: i32) -> Result<Vec<ProductResponse>, ApiError> {
-        // First check if the category exists
-        let category_exists = sqlx::query_scalar!(
-            r#"
-            SELECT EXISTS(SELECT 1 FROM categories WHERE id = $1)
-            "#,
-            category_id
-        )
-        .fetch_one(&self.db.pool())
-        .await?;
-
-        if !category_exists.unwrap_or(false) {
-            return Err(ApiError::not_found("Category", category_id));
+        let conn = self.db.conn();
+        
+        // First check if category exists
+        let category_exists = Category::find_by_id(category_id)
+            .one(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?
+            .is_some();
+            
+        if !category_exists {
+            return Err(ApiError::not_found_simple("Category not found"));
         }
-
-        // Get all products in this category
-        let products = sqlx::query_as!(
-            Product,
-            r#"
-            SELECT p.*
-            FROM products p
-            JOIN product_categories pc ON p.id = pc.product_id
-            WHERE pc.category_id = $1
-            ORDER BY p.name
-            "#,
-            category_id
-        )
-        .fetch_all(&self.db.pool())
-        .await?;
-
-        // Get categories for each product
+        
+        // Find all products in this category using the product_categories relation
+        let products = Product::find()
+            .join(sea_orm::JoinType::InnerJoin, products::Relation::ProductCategories.def())
+            .filter(product_categories::Column::CategoryId.eq(category_id))
+            .all(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?;
+            
+        // Convert to product response objects
         let mut product_responses = Vec::with_capacity(products.len());
+        
         for product in products {
-            let categories = sqlx::query!(
-                r#"
-                SELECT c.id, c.name
-                FROM categories c
-                JOIN product_categories pc ON c.id = pc.category_id
-                WHERE pc.product_id = $1
-                ORDER BY c.name
-                "#,
-                product.id
-            )
-            .map(|row| crate::models::product::CategoryBrief {
-                id: row.id,
-                name: row.name,
-            })
-            .fetch_all(&self.db.pool())
-            .await?;
-
+            // Get categories for each product
+            let categories = self.get_product_categories(product.id).await?;
+            
+            // Convert price to BigDecimal
+            let price_str = product.price.to_string();
+            let price = BigDecimal::from_str(&price_str)
+                .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
+                
+            // Convert timezone-aware datetime to Utc
+            let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                product.created_at.naive_utc(),
+                chrono::Utc,
+            );
+            let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
+                product.updated_at.naive_utc(),
+                chrono::Utc,
+            );
+            
             product_responses.push(ProductResponse {
                 id: product.id,
                 name: product.name,
                 description: product.description,
-                price: product.price,
+                price,
                 sku: product.sku,
                 categories,
-                created_at: product.created_at,
-                updated_at: product.updated_at,
+                created_at,
+                updated_at,
             });
         }
-
+        
         Ok(product_responses)
+    }
+
+    /// Helper method to count products in a category
+    async fn count_products_in_category(&self, category_id: i32) -> Result<i64, ApiError> {
+        let conn = self.db.conn();
+        
+        // Count products using the product_categories relation
+        let count = product_categories::Entity::find()
+            .filter(product_categories::Column::CategoryId.eq(category_id))
+            .count(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?;
+            
+        Ok(count as i64)
+    }
+    
+    /// Helper method to get product categories (used for product responses)
+    async fn get_product_categories(&self, product_id: i32) -> Result<Vec<crate::models::product::CategoryBrief>, ApiError> {
+        let conn = self.db.conn();
+        
+        // Using Sea-ORM relations to fetch related categories
+        let categories = Category::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                categories::Relation::ProductCategories.def(),
+            )
+            .filter(product_categories::Column::ProductId.eq(product_id))
+            .all(conn)
+            .await
+            .map_err(ApiError::SeaOrmDatabase)?;
+        
+        // Map to CategoryBrief
+        let category_briefs = categories
+            .into_iter()
+            .map(|category| crate::models::product::CategoryBrief {
+                id: category.id,
+                name: category.name,
+            })
+            .collect();
+            
+        Ok(category_briefs)
     }
 }

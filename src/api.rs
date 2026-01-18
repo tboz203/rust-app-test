@@ -5,7 +5,6 @@ use axum::{
     routing::{get, post, put, delete},
     Router,
 };
-use sqlx::PgPool;
 
 use crate::repository::{
     product::ProductRepository,
@@ -14,9 +13,7 @@ use crate::repository::{
 use crate::db::Database;
 
 /// Create all routes for the API
-pub fn routes(pool: PgPool) -> Router {
-    let db = Database::from_pool(pool);
-    
+pub fn routes(db: Database) -> Router {
     // Create repositories
     let product_repository = ProductRepository::new(db.clone());
     let category_repository = CategoryRepository::new(db.clone());

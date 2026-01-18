@@ -11,6 +11,9 @@ pub enum ApiError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
     
+    #[error("Sea-ORM database error: {0}")]
+    SeaOrmDatabase(#[from] sea_orm::DbErr),
+    
     #[error("Not found: {0}")]
     NotFound(String),
     
@@ -34,6 +37,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             Self::Database(ref e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+            Self::SeaOrmDatabase(ref e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             Self::NotFound(ref message) => (StatusCode::NOT_FOUND, message.clone()),
             Self::BadRequest(ref message) => (StatusCode::BAD_REQUEST, message.clone()),
             Self::Internal(ref message) => (StatusCode::INTERNAL_SERVER_ERROR, message.clone()),
@@ -61,7 +65,21 @@ impl ApiError {
         Self::NotFound(format!("{} with ID {} not found", resource, id))
     }
 
+    pub fn not_found_simple(message: impl Into<String>) -> Self {
+        Self::NotFound(message.into())
+    }
+
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::BadRequest(message.into())
+    }
+    
+    pub fn internal_server_error(message: impl Into<String>) -> Self {
+        Self::Internal(message.into())
+    }
+}
+
+impl From<validator::ValidationErrors> for ApiError {
+    fn from(_errors: validator::ValidationErrors) -> Self {
+        todo!("Convert validation errors to ApiError::Validation");
     }
 }

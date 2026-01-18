@@ -1,26 +1,30 @@
+#![allow(unused)]
+
+pub mod api;
+pub mod config;
+pub mod db;
+pub mod entity;
+pub mod error;
+pub mod models;
+pub mod repository;
+pub mod validation;
+
+// #[cfg(test)]
+// mod tests;
+
 use std::net::SocketAddr;
 
-use axum::{
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
+use config::Config;
+use db::Database;
 use dotenv::dotenv;
-use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-
-mod api;
-mod config;
-mod db;
-mod error;
-mod models;
-mod repository;
-mod validation;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Load environment variables
     dotenv().ok();
-    
+
     // Initialize tracing
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
@@ -30,27 +34,24 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     // Load configuration
-    let config = config::Config::from_env()?;
-    
-    // Set up database connection pool
-    let pool = PgPoolOptions::new()
-        .max_connections(5)
-        .connect(&config.database_url)
-        .await?;
+    let config = Config::from_env()?;
+
+    // Set up database connection
+    let db = Database::connect(&config.database_url).await?;
 
     // Build our application with routes
     let app = Router::new()
-        .nest("/api", api::routes(pool.clone()))
+        .nest("/api", api::routes(db))
         .route("/health", get(health_check));
-    
+
     // Run our application
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
-    
+
     let listener = tokio::net::TcpListener::bind(addr).await?;
     tracing::info!("Listening on {}", addr);
     axum::serve(listener, app).await?;
-    
+
     Ok(())
 }
 

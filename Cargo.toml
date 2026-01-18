@@ -7,45 +7,54 @@ description = "A RESTful API for managing product catalog data"
 
 [dependencies]
 # Web framework
-axum = "0.7.2"
-tower = "0.4.13"
-tower-http = { version = "0.5.0", features = ["trace", "cors"] }
+axum = "0"
+tower = "0"
+tower-http = { version = "0", features = ["trace", "cors"] }
 
 # Async runtime
-tokio = { version = "1.34.0", features = ["full"] }
+tokio = { version = "1", features = ["full"] }
 
 # Database
-sqlx = { version = "0.7.3", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "migrate", "bigdecimal"] }
-bigdecimal = "0.4.10"
+sea-orm = { version = "0.12", features = [
+    "runtime-tokio-rustls",
+    "sqlx-postgres",
+    "macros",
+    "with-chrono",
+    "with-uuid",
+    "with-json",
+    "with-bigdecimal",
+    "postgres-array",
+] }
+sea-orm-migration = "0.12"
 
 # Error handling
-anyhow = "1.0.75"
-thiserror = "1.0.50"
+anyhow = "1"
+thiserror = "1"
 
 # Serialization/deserialization
-serde = { version = "1.0.193", features = ["derive"] }
-serde_json = "1.0.108"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 # Validation
-validator = { version = "0.16.1", features = ["derive"] }
+validator = { version = "0", features = ["derive"] }
 
 # Utilities
-chrono = { version = "0.4.31", features = ["serde"] }
-uuid = { version = "1.6.1", features = ["v4", "serde"] }
+chrono = { version = "0", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
 
 # Configuration
-config = "0.13.4"
-dotenv = "0.15.0"
+config = "0"
+dotenv = "0"
 
 # Logging
-tracing = "0.1.40"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing = "0"
+tracing-subscriber = { version = "0", features = ["env-filter", "json"] }
 
 [dev-dependencies]
-reqwest = { version = "0.11.22", features = ["json"] }
-mockall = "0.12.1"
-tokio-test = "0.4.3"
-sqlx-cli = { version = "0.7.3", features = ["postgres"] }
+reqwest = { version = "0", features = ["json"] }
+mockall = "0"
+tokio-test = "0"
+sqlx-cli = { version = "0", features = ["postgres"] }
 
 [profile.dev]
 opt-level = 0

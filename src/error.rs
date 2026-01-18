@@ -9,10 +9,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum ApiError {
     #[error("Database error: {0}")]
-    Database(#[from] sqlx::Error),
-    
-    #[error("Sea-ORM database error: {0}")]
-    SeaOrmDatabase(#[from] sea_orm::DbErr),
+    Database(#[from] sea_orm::DbErr),
     
     #[error("Not found: {0}")]
     NotFound(String),
@@ -37,7 +34,6 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let (status, error_message) = match self {
             Self::Database(ref e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            Self::SeaOrmDatabase(ref e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             Self::NotFound(ref message) => (StatusCode::NOT_FOUND, message.clone()),
             Self::BadRequest(ref message) => (StatusCode::BAD_REQUEST, message.clone()),
             Self::Internal(ref message) => (StatusCode::INTERNAL_SERVER_ERROR, message.clone()),

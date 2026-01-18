@@ -1,20 +1,28 @@
 use std::str::FromStr;
 
 use crate::db::DatabaseConnection;
-use crate::entity::{categories, product_categories, products};
-use crate::entity::{Category, Product, ProductCategory};
-use crate::error::ApiError;
-use crate::models::category::{
-    Category as CategoryModel, CategoryListResponse, CategoryQueryParams, CategoryResponse,
-    CategoryWithProductsResponse, CreateCategoryRequest, UpdateCategoryRequest,
+use crate::entity::{
+    Category, CategoryModel, CategoryActiveModel, CategoryColumn, CategoryRelation,
+    Product, ProductModel, ProductColumn, ProductRelation,
+    ProductCategory, ProductCategoryModel, ProductCategoryColumn
 };
-use crate::models::product::{Product as ProductModel, ProductResponse};
+use crate::error::ApiError;
+use crate::models::{
+    category::{
+        CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse,
+        CreateCategoryRequest, UpdateCategoryRequest,
+    },
+    product::ProductResponse,
+};
+
 use anyhow::Result;
 use bigdecimal::BigDecimal;
+use chrono::{Utc, FixedOffset};
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
+use sea_orm::prelude::DateTimeWithTimeZone;
 
 /// Repository for category operations
 #[derive(Clone)]
@@ -39,7 +47,7 @@ impl CategoryRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Create category active model
-                    let category = categories::ActiveModel {
+                    let category = CategoryActiveModel {
                         name: Set(req.name.clone()),
                         description: Set(req.description.clone()),
                         ..Default::default()
@@ -49,30 +57,20 @@ impl CategoryRepository {
                     let category_model = category
                         .insert(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
-
-                    // Convert timezone-aware datetime to Utc
-                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        category_model.created_at.naive_utc(),
-                        chrono::Utc,
-                    );
-                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        category_model.updated_at.naive_utc(),
-                        chrono::Utc,
-                    );
+                        .map_err(ApiError::Database)?;
 
                     Ok(CategoryResponse {
                         id: category_model.id,
                         name: category_model.name,
                         description: category_model.description,
-                        created_at,
-                        updated_at,
+                        created_at: category_model.created_at,
+                        updated_at: category_model.updated_at,
                     })
                 })
             })
             .await
             .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
                 sea_orm::TransactionError::Transaction(api_err) => api_err,
             })?;
 
@@ -85,21 +83,16 @@ impl CategoryRepository {
         let category = Category::find_by_id(id)
             .one(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?
+            .map_err(ApiError::Database)?
             .ok_or_else(|| ApiError::not_found_simple("Category not found"))?;
 
-        // Convert timezone-aware datetime to Utc
-        let created_at =
-            chrono::DateTime::<chrono::Utc>::from_utc(category.created_at.naive_utc(), chrono::Utc);
-        let updated_at =
-            chrono::DateTime::<chrono::Utc>::from_utc(category.updated_at.naive_utc(), chrono::Utc);
-
+        // Create the response directly without timezone conversion
         Ok(CategoryResponse {
             id: category.id,
             name: category.name,
             description: category.description,
-            created_at,
-            updated_at,
+            created_at: category.created_at,
+            updated_at: category.updated_at,
         })
     }
 
@@ -109,10 +102,10 @@ impl CategoryRepository {
         params: CategoryQueryParams,
     ) -> Result<CategoryListResponse, ApiError> {
         let categories = Category::find()
-            .order_by_asc(categories::Column::Name)
+            .order_by_asc(CategoryColumn::Name)
             .all(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
 
         let mut category_responses = Vec::with_capacity(categories.len());
 
@@ -124,23 +117,13 @@ impl CategoryRepository {
                 0 // Default value if not requested
             };
 
-            // Convert timezone-aware datetime to Utc
-            let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                category.created_at.naive_utc(),
-                chrono::Utc,
-            );
-            let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                category.updated_at.naive_utc(),
-                chrono::Utc,
-            );
-
             category_responses.push(CategoryWithProductsResponse {
                 id: category.id,
                 name: category.name,
                 description: category.description,
                 product_count,
-                created_at,
-                updated_at,
+                created_at: category.created_at,
+                updated_at: category.updated_at,
             });
         }
 
@@ -164,11 +147,11 @@ impl CategoryRepository {
                     let category = Category::find_by_id(id)
                         .one(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?
+                        .map_err(ApiError::Database)?
                         .ok_or_else(|| ApiError::not_found_simple("Category not found"))?;
 
                     // Create active model for update
-                    let mut category_active: categories::ActiveModel = category.clone().into();
+                    let mut category_active: CategoryActiveModel = category.clone().into();
 
                     // Update fields if provided
                     if let Some(name) = req.name {
@@ -183,30 +166,20 @@ impl CategoryRepository {
                     let category_model = category_active
                         .update(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
-
-                    // Convert timezone-aware datetime to Utc
-                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        category_model.created_at.naive_utc(),
-                        chrono::Utc,
-                    );
-                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        category_model.updated_at.naive_utc(),
-                        chrono::Utc,
-                    );
+                        .map_err(ApiError::Database)?;
 
                     Ok(CategoryResponse {
                         id: category_model.id,
                         name: category_model.name,
                         description: category_model.description,
-                        created_at,
-                        updated_at,
+                        created_at: category_model.created_at,
+                        updated_at: category_model.updated_at,
                     })
                 })
             })
             .await
             .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
                 sea_orm::TransactionError::Transaction(api_err) => api_err,
             })?;
 
@@ -223,7 +196,7 @@ impl CategoryRepository {
                     let category_exists = Category::find_by_id(id)
                         .one(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?
+                        .map_err(ApiError::Database)?
                         .is_some();
 
                     if !category_exists {
@@ -231,24 +204,24 @@ impl CategoryRepository {
                     }
 
                     // Delete product categories
-                    product_categories::Entity::delete_many()
-                        .filter(product_categories::Column::CategoryId.eq(id))
+                    ProductCategory::delete_many()
+                        .filter(ProductCategoryColumn::CategoryId.eq(id))
                         .exec(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
+                        .map_err(ApiError::Database)?;
 
                     // Delete category
                     Category::delete_by_id(id)
                         .exec(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
+                        .map_err(ApiError::Database)?;
 
                     Ok(())
                 })
             })
             .await
             .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
                 sea_orm::TransactionError::Transaction(api_err) => api_err,
             })
     }
@@ -262,7 +235,7 @@ impl CategoryRepository {
         let category_exists = Category::find_by_id(category_id)
             .one(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?
+            .map_err(ApiError::Database)?
             .is_some();
 
         if !category_exists {
@@ -273,12 +246,12 @@ impl CategoryRepository {
         let products = Product::find()
             .join(
                 sea_orm::JoinType::InnerJoin,
-                products::Relation::ProductCategories.def(),
+                ProductRelation::ProductCategories.def(),
             )
-            .filter(product_categories::Column::CategoryId.eq(category_id))
+            .filter(ProductCategoryColumn::CategoryId.eq(category_id))
             .all(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
 
         // Convert to product response objects
         let mut product_responses = Vec::with_capacity(products.len());
@@ -292,16 +265,6 @@ impl CategoryRepository {
             let price = BigDecimal::from_str(&price_str)
                 .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
 
-            // Convert timezone-aware datetime to Utc
-            let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                product.created_at.naive_utc(),
-                chrono::Utc,
-            );
-            let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                product.updated_at.naive_utc(),
-                chrono::Utc,
-            );
-
             product_responses.push(ProductResponse {
                 id: product.id,
                 name: product.name,
@@ -309,8 +272,8 @@ impl CategoryRepository {
                 price,
                 sku: product.sku,
                 categories,
-                created_at,
-                updated_at,
+                created_at: product.created_at,
+                updated_at: product.updated_at,
             });
         }
 
@@ -320,11 +283,11 @@ impl CategoryRepository {
     /// Helper method to count products in a category
     async fn count_products_in_category(&self, category_id: i32) -> Result<i64, ApiError> {
         // Count products using the product_categories relation
-        let count = product_categories::Entity::find()
-            .filter(product_categories::Column::CategoryId.eq(category_id))
+        let count = ProductCategory::find()
+            .filter(ProductCategoryColumn::CategoryId.eq(category_id))
             .count(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
 
         Ok(count as i64)
     }
@@ -338,12 +301,12 @@ impl CategoryRepository {
         let categories = Category::find()
             .join(
                 sea_orm::JoinType::InnerJoin,
-                categories::Relation::ProductCategories.def(),
+                CategoryRelation::ProductCategories.def(),
             )
-            .filter(product_categories::Column::ProductId.eq(product_id))
+            .filter(ProductCategoryColumn::ProductId.eq(product_id))
             .all(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
 
         // Map to CategoryBrief
         let category_briefs = categories

@@ -5,6 +5,7 @@ use axum::{
     routing::{get, post, put, delete},
     Router,
 };
+use sea_orm::DatabaseConnection;
 
 use crate::repository::{
     product::ProductRepository,
@@ -13,10 +14,10 @@ use crate::repository::{
 use crate::db::Database;
 
 /// Create all routes for the API
-pub fn routes(db: Database) -> Router {
+pub fn routes(conn: DatabaseConnection) -> Router {
     // Create repositories
-    let product_repository = ProductRepository::new(db.clone());
-    let category_repository = CategoryRepository::new(db.clone());
+    let product_repository = ProductRepository::new(conn.clone());
+    let category_repository = CategoryRepository::new(conn.clone());
 
     // Combine all routes
     Router::new()

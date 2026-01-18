@@ -2,13 +2,19 @@ use std::str::FromStr;
 
 use anyhow::Result;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, 
+    ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder,
     RelationTrait, Set, TransactionTrait, QuerySelect, Condition, PaginatorTrait,
+    prelude::{DateTimeWithTimeZone, Decimal},
 };
 use bigdecimal::BigDecimal;
+use chrono::Utc;
 
 use crate::db::DatabaseConnection;
-use crate::entity::{Category, Product, ProductCategory, products};
+use crate::entity::{
+    Category, CategoryModel, CategoryRelation,
+    Product, ProductModel, ProductActiveModel, ProductColumn, ProductRelation,
+    ProductCategory, ProductCategoryModel, ProductCategoryActiveModel, ProductCategoryColumn
+};
 use crate::error::ApiError;
 use crate::models::product::{
     CategoryBrief, CreateProductRequest, ProductListResponse, ProductQueryParams,
@@ -38,11 +44,10 @@ impl ProductRepository {
                 Box::pin(async move {
                     // Convert BigDecimal to Decimal
                     let price_str = req.price.to_string();
-                    let sea_orm_price = BigDecimal::from_str(&price_str)
+                    let sea_orm_price = Decimal::from_str(&price_str)
                         .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
 
-                    // Create product active model
-                    let product = products::ActiveModel {
+                    let product = ProductActiveModel {
                         name: Set(req.name.clone()),
                         description: Set(req.description.clone()),
                         price: Set(sea_orm_price),
@@ -54,11 +59,11 @@ impl ProductRepository {
                     let product_model = product
                         .insert(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
+                        .map_err(ApiError::Database)?;
                         
                     // Insert product categories
                     for category_id in &req.category_ids {
-                        let product_category = product_categories::ActiveModel {
+                        let product_category = ProductCategoryActiveModel {
                             product_id: Set(product_model.id),
                             category_id: Set(*category_id),
                         };
@@ -66,23 +71,13 @@ impl ProductRepository {
                         product_category
                             .insert(txn)
                             .await
-                            .map_err(ApiError::SeaOrmDatabase)?;
+                            .map_err(ApiError::Database)?;
                     }
                     
                     // Fetch categories for response
                     let categories = Self::get_product_categories(product_model.id, txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
-                    
-                    // Convert timezone-aware datetime to Utc
-                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        product_model.created_at.naive_utc(),
-                        chrono::Utc,
-                    );
-                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        product_model.updated_at.naive_utc(),
-                        chrono::Utc,
-                    );
+                        .map_err(ApiError::Database)?;
                     
                     Ok(ProductResponse {
                         id: product_model.id,
@@ -91,14 +86,14 @@ impl ProductRepository {
                         price: req.price,
                         sku: product_model.sku,
                         categories,
-                        created_at,
-                        updated_at,
+                        created_at: product_model.created_at,
+                        updated_at: product_model.updated_at,
                     })
                 })
             })
             .await
             .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
                 sea_orm::TransactionError::Transaction(api_err) => api_err,
             })?;
             
@@ -111,29 +106,19 @@ impl ProductRepository {
         let product = Product::find_by_id(id)
             .one(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?
+            .map_err(ApiError::Database)?
             .ok_or_else(|| ApiError::not_found_simple("Product not found"))?;
             
         // Fetch categories
         let categories = Self::get_product_categories(id, &self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
             
         // Convert price from Sea-ORM Decimal to BigDecimal for the response
         let price_str = product.price.to_string();
         let price = BigDecimal::from_str(&price_str)
             .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
             
-        // Convert timezone-aware datetime to Utc
-        let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-            product.created_at.naive_utc(),
-            chrono::Utc,
-        );
-        let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-            product.updated_at.naive_utc(),
-            chrono::Utc,
-        );
-        
         Ok(ProductResponse {
             id: product.id,
             name: product.name,
@@ -141,8 +126,8 @@ impl ProductRepository {
             price,
             sku: product.sku,
             categories,
-            created_at,
-            updated_at,
+            created_at: product.created_at,
+            updated_at: product.updated_at,
         })
     }
 
@@ -161,12 +146,12 @@ impl ProductRepository {
         if let Some(category_id) = params.category_id {
             // Create a join with product_categories to filter by category
             query = query
-                .join(sea_orm::JoinType::InnerJoin, products::Relation::ProductCategories.def())
-                .filter(product_categories::Column::CategoryId.eq(category_id));
+                .join(sea_orm::JoinType::InnerJoin, ProductRelation::ProductCategories.def())
+                .filter(ProductCategoryColumn::CategoryId.eq(category_id));
         }
         
         // Count total records for pagination
-        let total = query.clone().count(&self.conn).await.map_err(ApiError::SeaOrmDatabase)?;
+        let total = query.clone().count(&self.conn).await.map_err(ApiError::Database)?;
         
         // Apply pagination and ordering
         // Convert i64 values to u64 to match Sea-ORM's expectation
@@ -174,35 +159,25 @@ impl ProductRepository {
         let limit = page_size as u64;
         
         let products = query
-            .order_by_asc(products::Column::Id)
+            .order_by_asc(ProductColumn::Id)
             .offset(offset)
             .limit(limit)
             .all(&self.conn)
             .await
-            .map_err(ApiError::SeaOrmDatabase)?;
+            .map_err(ApiError::Database)?;
         
         // Convert to response objects
         let mut product_responses = Vec::with_capacity(products.len());
         for product in products {
             let categories = Self::get_product_categories(product.id, &self.conn)
                 .await
-                .map_err(ApiError::SeaOrmDatabase)?;
+                .map_err(ApiError::Database)?;
                 
             // Convert price from Sea-ORM Decimal to BigDecimal for the response
             let price_str = product.price.to_string();
             let price = BigDecimal::from_str(&price_str)
                 .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
                 
-            // Convert timezone-aware datetime to Utc
-            let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                product.created_at.naive_utc(),
-                chrono::Utc,
-            );
-            let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                product.updated_at.naive_utc(),
-                chrono::Utc,
-            );
-            
             product_responses.push(ProductResponse {
                 id: product.id,
                 name: product.name,
@@ -210,8 +185,8 @@ impl ProductRepository {
                 price,
                 sku: product.sku,
                 categories,
-                created_at,
-                updated_at,
+                created_at: product.created_at,
+                updated_at: product.updated_at,
             });
         }
         
@@ -237,11 +212,11 @@ impl ProductRepository {
                     let product = Product::find_by_id(id)
                         .one(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?
+                        .map_err(ApiError::Database)?
                         .ok_or_else(|| ApiError::not_found_simple("Product not found"))?;
                         
                     // Create active model for update
-                    let mut product_active: products::ActiveModel = product.clone().into();
+                    let mut product_active: ProductActiveModel = product.clone().into();
                     
                     // Update fields if provided
                     if let Some(name) = req.name {
@@ -253,8 +228,8 @@ impl ProductRepository {
                     }
                     
                     if let Some(price) = &req.price {
-                        let price_str = price.to_string();
-                        let sea_orm_price = Decimal::from_str(&price_str)
+                        let price_str: String = price.to_string();
+                        let sea_orm_price: Decimal = Decimal::from_str(&price_str)
                             .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
                         product_active.price = Set(sea_orm_price);
                     }
@@ -267,20 +242,20 @@ impl ProductRepository {
                     let product_model = product_active
                         .update(txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
+                        .map_err(ApiError::Database)?;
                         
                     // Update categories if provided
                     if let Some(category_ids) = &req.category_ids {
                         // Delete existing product categories
-                        product_categories::Entity::delete_many()
-                            .filter(product_categories::Column::ProductId.eq(id))
+                        ProductCategory::delete_many()
+                            .filter(ProductCategoryColumn::ProductId.eq(id))
                             .exec(txn)
                             .await
-                            .map_err(ApiError::SeaOrmDatabase)?;
+                            .map_err(ApiError::Database)?;
                             
                         // Insert new product categories
                         for category_id in category_ids {
-                            let product_category = product_categories::ActiveModel {
+                            let product_category = ProductCategoryActiveModel {
                                 product_id: Set(id),
                                 category_id: Set(*category_id),
                             };
@@ -288,14 +263,14 @@ impl ProductRepository {
                             product_category
                                 .insert(txn)
                                 .await
-                                .map_err(ApiError::SeaOrmDatabase)?;
+                                .map_err(ApiError::Database)?;
                         }
                     }
                     
                     // Fetch categories for response
                     let categories = Self::get_product_categories(id, txn)
                         .await
-                        .map_err(ApiError::SeaOrmDatabase)?;
+                        .map_err(ApiError::Database)?;
                         
                     // Convert price for the response
                     // Use original price if provided, otherwise convert from the model
@@ -307,16 +282,6 @@ impl ProductRepository {
                             .map_err(|_| ApiError::internal_server_error("Invalid price format"))?
                     };
                         
-                    // Convert timezone-aware datetime to Utc
-                    let created_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        product_model.created_at.naive_utc(),
-                        chrono::Utc,
-                    );
-                    let updated_at = chrono::DateTime::<chrono::Utc>::from_utc(
-                        product_model.updated_at.naive_utc(),
-                        chrono::Utc,
-                    );
-                    
                     Ok(ProductResponse {
                         id: product_model.id,
                         name: product_model.name,
@@ -324,14 +289,14 @@ impl ProductRepository {
                         price,
                         sku: product_model.sku,
                         categories,
-                        created_at,
-                        updated_at,
+                        created_at: product_model.created_at,
+                        updated_at: product_model.updated_at,
                     })
                 })
             })
             .await
             .map_err(|e| match e {
-                sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+                sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
                 sea_orm::TransactionError::Transaction(api_err) => api_err,
             })?;
             
@@ -347,7 +312,7 @@ impl ProductRepository {
                 let product_exists = Product::find_by_id(id)
                     .one(txn)
                     .await
-                    .map_err(ApiError::SeaOrmDatabase)?
+                    .map_err(ApiError::Database)?
                     .is_some();
                     
                 if !product_exists {
@@ -355,24 +320,24 @@ impl ProductRepository {
                 }
                 
                 // Delete product categories (would be handled by foreign key cascade, but being explicit)
-                product_categories::Entity::delete_many()
-                    .filter(product_categories::Column::ProductId.eq(id))
+                ProductCategory::delete_many()
+                    .filter(ProductCategoryColumn::ProductId.eq(id))
                     .exec(txn)
                     .await
-                    .map_err(ApiError::SeaOrmDatabase)?;
+                    .map_err(ApiError::Database)?;
                     
                 // Delete the product
                 Product::delete_by_id(id)
                     .exec(txn)
                     .await
-                    .map_err(ApiError::SeaOrmDatabase)?;
+                    .map_err(ApiError::Database)?;
                     
                 Ok(())
             })
         })
         .await
         .map_err(|e| match e {
-            sea_orm::TransactionError::Connection(db_err) => ApiError::SeaOrmDatabase(db_err),
+            sea_orm::TransactionError::Connection(db_err) => ApiError::Database(db_err),
             sea_orm::TransactionError::Transaction(api_err) => api_err,
         })
     }
@@ -387,9 +352,9 @@ impl ProductRepository {
         let categories = Category::find()
             .join(
                 sea_orm::JoinType::InnerJoin,
-                categories::Relation::ProductCategories.def(),
+                CategoryRelation::ProductCategories.def(),
             )
-            .filter(product_categories::Column::ProductId.eq(product_id))
+            .filter(ProductCategoryColumn::ProductId.eq(product_id))
             .all(executor)
             .await?;
         

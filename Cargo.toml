@@ -1,7 +1,7 @@
 [package]
 name = "product-catalog-api"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Tommy Bozeman <tboz203@gmail.com>"]
 description = "A RESTful API for managing product catalog data"
 
@@ -26,7 +26,7 @@ sea-orm = { version = "0.12", features = [
     "postgres-array",
 ] }
 sea-orm-migration = "0.12"
-bigdecimal = "0"
+bigdecimal = { version = "0", features = ["serde"] }
 
 # Error handling
 anyhow = "1"

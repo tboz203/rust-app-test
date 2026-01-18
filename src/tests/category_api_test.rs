@@ -1,11 +1,21 @@
-use crate::models::category::{
-    CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest,
+use crate::{
+    entity::{
+        Category, CategoryModel, CategoryActiveModel,
+        Product, ProductModel, ProductActiveModel,
+        ProductCategory, ProductCategoryModel,
+    },
+    models::category::{
+        CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest,
+    },
+    models::product::{ProductResponse, CreateProductRequest},
 };
-use crate::models::product::ProductResponse;
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
+use tower::ServiceExt;
+use bigdecimal::BigDecimal;
+use std::str::FromStr;
 
 // Import from common module
 use super::common::{
@@ -27,7 +37,7 @@ async fn test_list_categories() {
         description: Some("Another test category".to_string()),
     };
 
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -43,7 +53,7 @@ async fn test_list_categories() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // Test list categories
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -71,7 +81,7 @@ async fn test_list_categories() {
         .any(|c| c.name == "Second Test Category"));
 
     // Test list categories with product count
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -108,7 +118,7 @@ async fn test_get_category() {
     let category = create_test_category(&app).await;
 
     // Test get category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -133,7 +143,7 @@ async fn test_get_category() {
     );
 
     // Test get non-existent category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -163,7 +173,7 @@ async fn test_create_category() {
         description: Some("A brand new category".to_string()),
     };
 
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -193,7 +203,7 @@ async fn test_create_category() {
         description: Some("Invalid category".to_string()),
     };
 
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -227,7 +237,7 @@ async fn test_update_category() {
         description: Some("Updated description".to_string()),
     };
 
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -253,7 +263,7 @@ async fn test_update_category() {
     );
 
     // Test update non-existent category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -282,7 +292,7 @@ async fn test_delete_category() {
     let category = create_test_category(&app).await;
 
     // Test delete category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -297,7 +307,7 @@ async fn test_delete_category() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // Verify category was deleted by trying to get it
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -312,7 +322,7 @@ async fn test_delete_category() {
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
 
     // Test delete non-existent category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -338,21 +348,18 @@ async fn test_get_category_products() {
 
     // Create test data
     let category = create_test_category(&app).await;
-    let product1 = create_test_product(&app, category.id).await;
+    let product1 = create_test_product(&app, vec![category.id]).await;
 
     // Create a second product in the same category
-    let request_body = product_catalog_api::models::product::CreateProductRequest {
+    let request_body = CreateProductRequest {
         name: "Second Product".to_string(),
         description: Some("Another product in the category".to_string()),
-        price: 29.99.into(),
-        category_id: category.id,
+        price: BigDecimal::from_str("29.99").unwrap(),
+        category_ids: vec![category.id],
         sku: Some("CAT-SKU-456".to_string()),
-        in_stock: true,
-        weight: Some(1.5),
-        dimensions: Some("5x10x15".to_string()),
     };
 
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -368,7 +375,7 @@ async fn test_get_category_products() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // Test get category products
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()
@@ -390,7 +397,7 @@ async fn test_get_category_products() {
     assert!(products.iter().any(|p| p.name == "Second Product"));
 
     // Test get products for non-existent category
-    let response = app
+    let response: axum::response::Response = app
         .clone()
         .oneshot(
             Request::builder()

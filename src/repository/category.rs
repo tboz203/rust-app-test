@@ -118,7 +118,7 @@ impl CategoryRepository {
                 id: category.id,
                 name: category.name,
                 description: category.description,
-                product_count,
+                product_count: Some(product_count),
                 created_at: category.created_at,
                 updated_at: category.updated_at,
             });

@@ -9,15 +9,15 @@ pub mod models;
 pub mod repository;
 pub mod validation;
 
-// #[cfg(test)]
-// mod tests;
+#[cfg(test)]
+mod tests;
 
 use std::net::SocketAddr;
 
 use axum::{Router, routing::get};
 use config::Config;
 use db::Database;
-use dotenv::dotenv;
+use dotenvy::dotenv;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -48,9 +48,10 @@ async fn main() -> anyhow::Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    tracing::info!("Listening on {}", addr);
-    axum::serve(listener, app).await?;
+    // Use hyper's Server with Axum 0.6.x
+    axum::Server::bind(&addr)
+        .serve(app.into_make_service())
+        .await?;
 
     Ok(())
 }

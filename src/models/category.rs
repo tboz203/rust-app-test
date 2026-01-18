@@ -3,7 +3,7 @@ use sea_orm::prelude::DateTimeWithTimeZone;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Category {
     pub id: i32,
     pub name: String,
@@ -12,7 +12,7 @@ pub struct Category {
     pub updated_at: DateTimeWithTimeZone,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct CreateCategoryRequest {
     #[validate(length(
         min = 1,
@@ -23,7 +23,7 @@ pub struct CreateCategoryRequest {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Serialize, Deserialize, Validate)]
 pub struct UpdateCategoryRequest {
     #[validate(length(
         min = 1,
@@ -34,7 +34,7 @@ pub struct UpdateCategoryRequest {
     pub description: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryResponse {
     pub id: i32,
     pub name: String,
@@ -43,17 +43,17 @@ pub struct CategoryResponse {
     pub updated_at: DateTimeWithTimeZone,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryWithProductsResponse {
     pub id: i32,
     pub name: String,
     pub description: Option<String>,
-    pub product_count: i64,
+    pub product_count: Option<i64>,
     pub created_at: DateTimeWithTimeZone,
     pub updated_at: DateTimeWithTimeZone,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CategoryListResponse {
     pub categories: Vec<CategoryWithProductsResponse>,
 }

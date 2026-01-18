@@ -3,10 +3,21 @@ use axum::{
     http::{Request, StatusCode},
 };
 // Import from crate root using the lib.rs exports
-use crate::models::product::{
-    CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest,
+use crate::{
+    entity::{
+        Category, CategoryModel, CategoryActiveModel,
+        Product, ProductModel, ProductActiveModel,
+        ProductCategory, ProductCategoryModel,
+    },
+    models::{
+        product::{
+            CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest,
+            CategoryBrief,
+        },
+        category::{CategoryResponse, CreateCategoryRequest},
+    },
 };
-use sqlx::types::BigDecimal;
+use bigdecimal::BigDecimal;
 use std::str::FromStr;
 use tower::ServiceExt;
 
@@ -23,18 +34,15 @@ async fn test_list_products() {
 
     // Create test data
     let category = create_test_category(&app).await;
-    let product1 = create_test_product(&app, category.id).await;
+    let product1 = create_test_product(&app, vec![category.id]).await;
 
     // Create a second product for pagination testing
     let request_body = CreateProductRequest {
         name: "Second Test Product".to_string(),
         description: Some("Another test product".to_string()),
         price: BigDecimal::from_str("29.99").unwrap(),
-        category_id: category.id,
+        category_ids: vec![category.id],
         sku: Some("TEST-SKU-456".to_string()),
-        in_stock: true,
-        weight: Some(1.5),
-        dimensions: Some("5x10x15".to_string()),
     };
 
     let _ = app
@@ -109,7 +117,7 @@ async fn test_get_product() {
 
     // Create test data
     let category = create_test_category(&app).await;
-    let product = create_test_product(&app, category.id).await;
+    let product = create_test_product(&app, vec![category.id]).await;
 
     // Test get product
     let response = app
@@ -131,7 +139,7 @@ async fn test_get_product() {
 
     assert_eq!(response_product.id, product.id);
     assert_eq!(response_product.name, "Test Product");
-    assert_eq!(response_product.category_id, category.id);
+    assert!(response_product.categories.iter().any(|c| c.id == category.id));
 
     // Test get non-existent product
     let response = app
@@ -166,11 +174,8 @@ async fn test_create_product() {
         name: "New Product".to_string(),
         description: Some("A brand new product".to_string()),
         price: BigDecimal::from_str("39.99").unwrap(),
-        category_id: category.id,
+        category_ids: vec![category.id],
         sku: Some("NEW-SKU-789".to_string()),
-        in_stock: true,
-        weight: Some(3.5),
-        dimensions: Some("15x25x35".to_string()),
     };
 
     let response = app
@@ -199,11 +204,8 @@ async fn test_create_product() {
         name: "".to_string(), // Empty name, should fail validation
         description: Some("Invalid product".to_string()),
         price: BigDecimal::from_str("9.99").unwrap(),
-        category_id: category.id,
+        category_ids: vec![category.id],
         sku: Some("INV-SKU".to_string()),
-        in_stock: true,
-        weight: Some(1.0),
-        dimensions: Some("5x5x5".to_string()),
     };
 
     let response = app
@@ -226,11 +228,8 @@ async fn test_create_product() {
         name: "Invalid Category Product".to_string(),
         description: Some("A product with invalid category".to_string()),
         price: BigDecimal::from_str("19.99").unwrap(),
-        category_id: 9999, // Non-existent category
+        category_ids: vec![9999], // Non-existent category
         sku: Some("IC-SKU".to_string()),
-        in_stock: true,
-        weight: Some(2.0),
-        dimensions: Some("10x10x10".to_string()),
     };
 
     let response = app
@@ -262,18 +261,15 @@ async fn test_update_product() {
 
     // Create test data
     let category = create_test_category(&app).await;
-    let product = create_test_product(&app, category.id).await;
+    let product = create_test_product(&app, vec![category.id]).await;
 
     // Test update product
     let update_body = UpdateProductRequest {
         name: Some("Updated Product".to_string()),
         description: Some("Updated description".to_string()),
         price: Some(BigDecimal::from_str("49.99").unwrap()),
-        category_id: Some(category.id),
+        category_ids: Some(vec![category.id]),
         sku: Some("UPD-SKU-123".to_string()),
-        in_stock: Some(false),
-        weight: Some(4.5),
-        dimensions: Some("20x30x40".to_string()),
     };
 
     let response = app
@@ -300,7 +296,6 @@ async fn test_update_product() {
         updated_product.description,
         Some("Updated description".to_string())
     );
-    assert_eq!(updated_product.in_stock, false);
 
     // Test update non-existent product
     let response = app
@@ -330,7 +325,7 @@ async fn test_delete_product() {
 
     // Create test data
     let category = create_test_category(&app).await;
-    let product = create_test_product(&app, category.id).await;
+    let product = create_test_product(&app, vec![category.id]).await;
 
     // Test delete product
     let response = app
@@ -376,6 +371,128 @@ async fn test_delete_product() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+
+    // Clean up test data
+    cleanup_test_data(&pool).await;
+}
+
+#[tokio::test]
+async fn test_product_category_many_to_many() {
+    // Initialize test environment
+    let pool = initialize().await;
+    let app = create_test_app(pool.clone());
+
+    // Create test categories
+    let category1 = create_test_category(&app).await;
+    
+    // Create a second category
+    let category2_request = CreateCategoryRequest {
+        name: "Second Category".to_string(),
+        description: Some("Another test category".to_string()),
+    };
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/categories")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&category2_request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let category2: CategoryResponse = serde_json::from_slice(&body).unwrap();
+
+    // Create a product with multiple categories
+    let product_request = CreateProductRequest {
+        name: "Multi-Category Product".to_string(),
+        description: Some("A product with multiple categories".to_string()),
+        price: BigDecimal::from_str("39.99").unwrap(),
+        category_ids: vec![category1.id, category2.id],
+        sku: Some("MULTI-CAT-001".to_string()),
+    };
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/products")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&product_request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let product: ProductResponse = serde_json::from_slice(&body).unwrap();
+
+    // Verify product has both categories
+    assert_eq!(product.categories.len(), 2);
+    assert!(product.categories.iter().any(|c| c.id == category1.id));
+    assert!(product.categories.iter().any(|c| c.id == category2.id));
+
+    // Create a third category
+    let category3_request = CreateCategoryRequest {
+        name: "Third Category".to_string(),
+        description: Some("Yet another test category".to_string()),
+    };
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/api/categories")
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&category3_request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let category3: CategoryResponse = serde_json::from_slice(&body).unwrap();
+
+    // Update the product to add the third category and remove the first one
+    let update_request = UpdateProductRequest {
+        name: None,
+        description: None,
+        price: None,
+        category_ids: Some(vec![category2.id, category3.id]),
+        sku: None,
+    };
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("PUT")
+                .uri(&format!("/api/products/{}", product.id))
+                .header("Content-Type", "application/json")
+                .body(Body::from(serde_json::to_string(&update_request).unwrap()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+    let updated_product: ProductResponse = serde_json::from_slice(&body).unwrap();
+
+    // Verify product has been updated with new categories
+    assert_eq!(updated_product.categories.len(), 2);
+    assert!(!updated_product.categories.iter().any(|c| c.id == category1.id));
+    assert!(updated_product.categories.iter().any(|c| c.id == category2.id));
+    assert!(updated_product.categories.iter().any(|c| c.id == category3.id));
 
     // Clean up test data
     cleanup_test_data(&pool).await;

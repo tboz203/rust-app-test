@@ -23,8 +23,8 @@ COPY . .
 # Build the application
 RUN cargo build
 
-# Install sqlx-cli for migrations
-RUN cargo install sqlx-cli --no-default-features --features postgres
+# Install sea-orm-cli for migrations
+RUN cargo install sea-orm-cli --no-default-features --features postgres
 
 # ================================================================================
 
@@ -42,10 +42,10 @@ RUN apt-get update && \
 # Copy the binary from the builder stage
 COPY --from=builder /app/target/debug/product-catalog-api /app/product-catalog-api
 
-# Copy sqlx-cli for migrations
-COPY --from=builder /usr/local/cargo/bin/sqlx /usr/local/bin/sqlx
+# Copy sea-orm-cli for migrations
+COPY --from=builder /usr/local/cargo/bin/sea-orm-cli /usr/local/bin/sea-orm-cli
 
-# Copy migrations for SQLx
+# Copy migrations for Sea ORM
 COPY --from=builder /app/migrations /app/migrations
 
 # Set the entrypoint

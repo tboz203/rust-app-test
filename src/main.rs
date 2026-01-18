@@ -14,7 +14,7 @@ pub mod validation;
 
 use std::net::SocketAddr;
 
-use axum::{routing::get, Router};
+use axum::{Router, routing::get};
 use config::Config;
 use db::Database;
 use dotenv::dotenv;

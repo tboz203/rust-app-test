@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde_json::json;
 use thiserror::Error;
@@ -10,16 +10,16 @@ use thiserror::Error;
 pub enum ApiError {
     #[error("Database error: {0}")]
     Database(#[from] sea_orm::DbErr),
-    
+
     #[error("Not found: {0}")]
     NotFound(String),
-    
+
     #[error("Bad request: {0}")]
     BadRequest(String),
-    
+
     #[error("Internal server error: {0}")]
     Internal(String),
-    
+
     #[error("Validation error: {0}")]
     Validation(String),
 
@@ -68,7 +68,7 @@ impl ApiError {
     pub fn bad_request(message: impl Into<String>) -> Self {
         Self::BadRequest(message.into())
     }
-    
+
     pub fn internal_server_error(message: impl Into<String>) -> Self {
         Self::Internal(message.into())
     }

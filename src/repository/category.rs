@@ -2,9 +2,9 @@ use std::str::FromStr;
 
 use crate::db::DatabaseConnection;
 use crate::entity::{
-    Category, CategoryModel, CategoryActiveModel, CategoryColumn, CategoryRelation,
-    Product, ProductModel, ProductColumn, ProductRelation,
-    ProductCategory, ProductCategoryModel, ProductCategoryColumn
+    Category, CategoryActiveModel, CategoryColumn, CategoryModel, CategoryRelation, Product,
+    ProductCategory, ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel,
+    ProductRelation,
 };
 use crate::error::ApiError;
 use crate::models::{
@@ -17,12 +17,12 @@ use crate::models::{
 
 use anyhow::Result;
 use bigdecimal::BigDecimal;
-use chrono::{Utc, FixedOffset};
+use chrono::{FixedOffset, Utc};
+use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
     QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
 };
-use sea_orm::prelude::DateTimeWithTimeZone;
 
 /// Repository for category operations
 #[derive(Clone)]
@@ -54,10 +54,7 @@ impl CategoryRepository {
                     };
 
                     // Insert category
-                    let category_model = category
-                        .insert(txn)
-                        .await
-                        .map_err(ApiError::Database)?;
+                    let category_model = category.insert(txn).await.map_err(ApiError::Database)?;
 
                     Ok(CategoryResponse {
                         id: category_model.id,

@@ -1,7 +1,7 @@
 use chrono::Utc;
+use sea_orm::prelude::DateTimeWithTimeZone;
 use serde::{Deserialize, Serialize};
 use validator::Validate;
-use sea_orm::prelude::DateTimeWithTimeZone;
 
 #[derive(Debug, Serialize)]
 pub struct Category {

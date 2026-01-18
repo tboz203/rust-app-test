@@ -1,13 +1,16 @@
 use axum::{
-    extract::{Path, Query, State},
     Json,
+    extract::{Path, Query, State},
 };
 use tracing::{info, instrument};
 use validator::Validate;
 
 use crate::{
     error::ApiError,
-    models::product::{CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse, UpdateProductRequest},
+    models::product::{
+        CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse,
+        UpdateProductRequest,
+    },
     repository::product::ProductRepository,
 };
 
@@ -19,10 +22,14 @@ pub async fn list_products(
     State(repository): State<ProductRepository>,
     Query(params): Query<ProductQueryParams>,
 ) -> Result<Json<ProductListResponse>, ApiError> {
-    info!("Listing products with params: page={}, page_size={}", params.page().to_string(), params.page_size().to_string());
-    
+    info!(
+        "Listing products with params: page={}, page_size={}",
+        params.page().to_string(),
+        params.page_size().to_string()
+    );
+
     let response = repository.list_products(params).await?;
-    
+
     info!("Found {} products", response.total);
     Ok(Json(response))
 }
@@ -36,9 +43,9 @@ pub async fn get_product(
     Path(id): Path<i32>,
 ) -> Result<Json<ProductResponse>, ApiError> {
     info!("Getting product with ID: {}", id);
-    
+
     let product = repository.get_product(id).await?;
-    
+
     info!("Found product: {}", product.name);
     Ok(Json(product))
 }
@@ -52,7 +59,7 @@ pub async fn create_product(
     Json(request): Json<CreateProductRequest>,
 ) -> Result<Json<ProductResponse>, ApiError> {
     info!("Creating new product: {}", request.name);
-    
+
     // Validate the request
     request.validate()?;
 
@@ -73,10 +80,10 @@ pub async fn update_product(
     Json(request): Json<UpdateProductRequest>,
 ) -> Result<Json<ProductResponse>, ApiError> {
     info!("Updating product with ID: {}", id);
-    
+
     // Validate the request
     request.validate()?;
-    
+
     // Update the product
     let product = repository.update_product(id, request).await?;
 
@@ -93,9 +100,11 @@ pub async fn delete_product(
     Path(id): Path<i32>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
     info!("Deleting product with ID: {}", id);
-    
+
     repository.delete_product(id).await?;
-    
+
     info!("Product deleted successfully");
-    Ok(Json(serde_json::json!({ "message": "Product deleted successfully" })))
+    Ok(Json(
+        serde_json::json!({ "message": "Product deleted successfully" }),
+    ))
 }

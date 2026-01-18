@@ -1,6 +1,6 @@
+use bigdecimal::BigDecimal;
 use chrono::{DateTime, FixedOffset};
 use serde::{Deserialize, Serialize};
-use bigdecimal::BigDecimal;
 use validator::Validate;
 
 use crate::validation::validate_decimal_positive;

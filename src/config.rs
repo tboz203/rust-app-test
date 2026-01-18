@@ -13,12 +13,12 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Result<Self> {
         // Get database connection parameters
-        let postgres_host = env::var("POSTGRES_HOST").unwrap_or_else(|_| "localhost".to_string());
-        let postgres_port = env::var("POSTGRES_PORT").unwrap_or_else(|_| "5432".to_string());
-        let postgres_user = env::var("POSTGRES_USER").unwrap_or_else(|_| "postgres".to_string());
-        let postgres_password = env::var("POSTGRES_PASSWORD").unwrap_or_else(|_| "postgres".to_string());
-        let postgres_db = env::var("POSTGRES_DB").unwrap_or_else(|_| "product_catalog".to_string());
-        
+        let postgres_host = env::var("POSTGRES_HOST")?;
+        let postgres_port = env::var("POSTGRES_PORT")?;
+        let postgres_user = env::var("POSTGRES_USER")?;
+        let postgres_password = env::var("POSTGRES_PASSWORD")?;
+        let postgres_db = env::var("POSTGRES_DB")?;
+
         // Construct database URL from individual parameters
         let database_url = format!(
             "postgres://{}:{}@{}:{}/{}",
@@ -27,10 +27,8 @@ impl Config {
 
         Ok(Self {
             database_url,
-            server_host: env::var("SERVER_HOST").unwrap_or_else(|_| "127.0.0.1".to_string()),
-            server_port: env::var("SERVER_PORT")
-                .unwrap_or_else(|_| "3000".to_string())
-                .parse()?,
+            server_host: env::var("SERVER_HOST")?,
+            server_port: env::var("SERVER_PORT")?.parse()?,
             rust_log: env::var("RUST_LOG").unwrap_or_else(|_| "info".to_string()),
         })
     }

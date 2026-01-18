@@ -1,6 +1,7 @@
-pub mod prelude;
 pub mod products;
 pub mod categories;
 pub mod product_categories;
 
-pub use prelude::*;
+pub use categories::Entity as Category;
+pub use product_categories::Entity as ProductCategory;
+pub use products::Entity as Product;

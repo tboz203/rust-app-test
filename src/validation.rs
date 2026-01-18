@@ -1,6 +1,5 @@
 use anyhow::Result;
-use bigdecimal::Signed;
-use sqlx::types::BigDecimal;
+use bigdecimal::{BigDecimal, Signed};
 use validator::ValidationError;
 
 /// Validates that a Decimal value is positive

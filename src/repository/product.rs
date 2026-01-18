@@ -1,30 +1,30 @@
-use crate::db::Database;
-use crate::entity::{categories, product_categories, products};
-use crate::entity::prelude::{Category, Product, ProductCategory};
-use crate::error::ApiError;
-use crate::models::product::{
-    CategoryBrief, CreateProductRequest, ProductListResponse, ProductQueryParams,
-    ProductResponse, UpdateProductRequest,
-};
+use std::str::FromStr;
+
 use anyhow::Result;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, EntityTrait, ModelTrait, QueryFilter, QueryOrder, 
     RelationTrait, Set, TransactionTrait, QuerySelect, Condition, PaginatorTrait,
 };
-use sqlx::types::BigDecimal;
-use std::str::FromStr;
-use sea_orm::prelude::Decimal;
+use bigdecimal::BigDecimal;
+
+use crate::db::DatabaseConnection;
+use crate::entity::{Category, Product, ProductCategory, products};
+use crate::error::ApiError;
+use crate::models::product::{
+    CategoryBrief, CreateProductRequest, ProductListResponse, ProductQueryParams,
+    ProductResponse, UpdateProductRequest,
+};
 
 /// Repository for product operations
 #[derive(Clone)]
 pub struct ProductRepository {
-    db: Database,
+    conn: DatabaseConnection,
 }
 
 impl ProductRepository {
     /// Create a new product repository
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(conn: DatabaseConnection) -> Self {
+        Self { conn }
     }
 
     /// Create a new product
@@ -32,15 +32,13 @@ impl ProductRepository {
         &self,
         req: CreateProductRequest,
     ) -> Result<ProductResponse, ApiError> {
-        let conn = self.db.conn();
-        
         // Start transaction
-        let result = conn
+        let result = self.conn
             .transaction(|txn| {
                 Box::pin(async move {
                     // Convert BigDecimal to Decimal
                     let price_str = req.price.to_string();
-                    let sea_orm_price = Decimal::from_str(&price_str)
+                    let sea_orm_price = BigDecimal::from_str(&price_str)
                         .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
 
                     // Create product active model
@@ -90,7 +88,7 @@ impl ProductRepository {
                         id: product_model.id,
                         name: product_model.name,
                         description: product_model.description,
-                        price: req.price, // Use the original price to avoid precision issues
+                        price: req.price,
                         sku: product_model.sku,
                         categories,
                         created_at,
@@ -109,17 +107,15 @@ impl ProductRepository {
 
     /// Get a product by ID
     pub async fn get_product(&self, id: i32) -> Result<ProductResponse, ApiError> {
-        let conn = self.db.conn();
-        
         // Find product by ID
         let product = Product::find_by_id(id)
-            .one(conn)
+            .one(&self.conn)
             .await
             .map_err(ApiError::SeaOrmDatabase)?
             .ok_or_else(|| ApiError::not_found_simple("Product not found"))?;
             
         // Fetch categories
-        let categories = Self::get_product_categories(id, conn)
+        let categories = Self::get_product_categories(id, &self.conn)
             .await
             .map_err(ApiError::SeaOrmDatabase)?;
             
@@ -155,7 +151,6 @@ impl ProductRepository {
         &self,
         params: ProductQueryParams,
     ) -> Result<ProductListResponse, ApiError> {
-        let conn = self.db.conn();
         let page = params.page();
         let page_size = params.page_size();
         
@@ -171,7 +166,7 @@ impl ProductRepository {
         }
         
         // Count total records for pagination
-        let total = query.clone().count(conn).await.map_err(ApiError::SeaOrmDatabase)?;
+        let total = query.clone().count(&self.conn).await.map_err(ApiError::SeaOrmDatabase)?;
         
         // Apply pagination and ordering
         // Convert i64 values to u64 to match Sea-ORM's expectation
@@ -182,14 +177,14 @@ impl ProductRepository {
             .order_by_asc(products::Column::Id)
             .offset(offset)
             .limit(limit)
-            .all(conn)
+            .all(&self.conn)
             .await
             .map_err(ApiError::SeaOrmDatabase)?;
         
         // Convert to response objects
         let mut product_responses = Vec::with_capacity(products.len());
         for product in products {
-            let categories = Self::get_product_categories(product.id, conn)
+            let categories = Self::get_product_categories(product.id, &self.conn)
                 .await
                 .map_err(ApiError::SeaOrmDatabase)?;
                 
@@ -234,10 +229,8 @@ impl ProductRepository {
         id: i32,
         req: UpdateProductRequest,
     ) -> Result<ProductResponse, ApiError> {
-        let conn = self.db.conn();
-        
         // Start transaction
-        let result = conn
+        let result = self.conn
             .transaction(|txn| {
                 Box::pin(async move {
                     // Find product by ID
@@ -347,10 +340,8 @@ impl ProductRepository {
 
     /// Delete a product
     pub async fn delete_product(&self, id: i32) -> Result<(), ApiError> {
-        let conn = self.db.conn();
-        
         // Start transaction
-        conn.transaction(|txn| {
+        self.conn.transaction(|txn| {
             Box::pin(async move {
                 // Check if product exists
                 let product_exists = Product::find_by_id(id)

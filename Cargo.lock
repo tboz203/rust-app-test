@@ -2340,6 +2340,7 @@ dependencies = [
  "config",
  "dotenvy",
  "hyper 0.14.32",
+ "migration",
  "mockall",
  "reqwest",
  "sea-orm",

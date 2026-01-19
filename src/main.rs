@@ -18,6 +18,7 @@ use axum::{Router, routing::get};
 use config::Config;
 use db::Database;
 use dotenvy::dotenv;
+use migration::{Migrator, MigratorTrait};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[tokio::main]
@@ -38,6 +39,11 @@ async fn main() -> anyhow::Result<()> {
 
     // Set up database connection
     let db = Database::connect(&config.database_url).await?;
+
+    // Run database migrations
+    tracing::info!("Running database migrations");
+    Migrator::up(&db, None).await?;
+    tracing::info!("Database migrations completed successfully");
 
     // Build our application with routes
     let app = Router::new()

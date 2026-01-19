@@ -1,6 +1,7 @@
+use std::env;
+
 use anyhow::Result;
 use serde::Deserialize;
-use std::env;
 
 #[derive(Debug, Deserialize)]
 pub struct Config {

@@ -1,25 +1,18 @@
-use crate::{
-    entity::{
-        Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory,
-        ProductCategoryModel, ProductModel,
-    },
-    models::category::{
-        CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest,
-    },
-    models::product::{CreateProductRequest, ProductResponse},
-};
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
-use bigdecimal::BigDecimal;
 use std::str::FromStr;
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use bigdecimal::BigDecimal;
 use tower::ServiceExt;
 
 // Import from common module
-use super::common::{
-    cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize,
+use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
+use crate::entity::{
+    Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory, ProductCategoryModel,
+    ProductModel,
 };
+use crate::models::category::{CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest};
+use crate::models::product::{CreateProductRequest, ProductResponse};
 
 #[tokio::test]
 async fn test_list_categories() {
@@ -70,18 +63,8 @@ async fn test_list_categories() {
     let categories: CategoryListResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(categories.categories.len(), 2);
-    assert!(
-        categories
-            .categories
-            .iter()
-            .any(|c| c.name == "Test Category")
-    );
-    assert!(
-        categories
-            .categories
-            .iter()
-            .any(|c| c.name == "Second Test Category")
-    );
+    assert!(categories.categories.iter().any(|c| c.name == "Test Category"));
+    assert!(categories.categories.iter().any(|c| c.name == "Second Test Category"));
 
     // Test list categories with product count
     let response: axum::response::Response = app
@@ -102,12 +85,7 @@ async fn test_list_categories() {
     let categories: CategoryListResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(categories.categories.len(), 2);
-    assert!(
-        categories
-            .categories
-            .iter()
-            .all(|c| c.product_count.is_some())
-    );
+    assert!(categories.categories.iter().all(|c| c.product_count.is_some()));
 
     // Clean up test data
     cleanup_test_data(&pool).await;
@@ -142,10 +120,7 @@ async fn test_get_category() {
 
     assert_eq!(response_category.id, category.id);
     assert_eq!(response_category.name, "Test Category");
-    assert_eq!(
-        response_category.description,
-        Some("A test category".to_string())
-    );
+    assert_eq!(response_category.description, Some("A test category".to_string()));
 
     // Test get non-existent category
     let response: axum::response::Response = app
@@ -197,10 +172,7 @@ async fn test_create_category() {
     let category: CategoryResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(category.name, "New Category");
-    assert_eq!(
-        category.description,
-        Some("A brand new category".to_string())
-    );
+    assert_eq!(category.description, Some("A brand new category".to_string()));
 
     // Test create category with invalid data (empty name)
     let invalid_body = CreateCategoryRequest {
@@ -262,10 +234,7 @@ async fn test_update_category() {
 
     assert_eq!(updated_category.id, category.id);
     assert_eq!(updated_category.name, "Updated Category");
-    assert_eq!(
-        updated_category.description,
-        Some("Updated description".to_string())
-    );
+    assert_eq!(updated_category.description, Some("Updated description".to_string()));
 
     // Test update non-existent category
     let response: axum::response::Response = app

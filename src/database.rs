@@ -1,6 +1,6 @@
-use anyhow::{Result, anyhow};
 use std::time::Duration;
 
+use anyhow::{Result, anyhow};
 // Re-export Sea-ORM types for future use
 pub use sea_orm::{ConnectOptions, Database, DatabaseConnection, DbErr, TransactionTrait};
 

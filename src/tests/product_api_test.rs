@@ -1,7 +1,12 @@
-use axum::{
-    body::Body,
-    http::{Request, StatusCode},
-};
+use std::str::FromStr;
+
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use bigdecimal::BigDecimal;
+use tower::ServiceExt;
+
+// Import from common module
+use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
 // Import from crate root using the lib.rs exports
 use crate::{
     entity::{
@@ -10,19 +15,8 @@ use crate::{
     },
     models::{
         category::{CategoryResponse, CreateCategoryRequest},
-        product::{
-            CategoryBrief, CreateProductRequest, ProductListResponse, ProductResponse,
-            UpdateProductRequest,
-        },
+        product::{CategoryBrief, CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest},
     },
-};
-use bigdecimal::BigDecimal;
-use std::str::FromStr;
-use tower::ServiceExt;
-
-// Import from common module
-use super::common::{
-    cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize,
 };
 
 #[tokio::test]
@@ -78,12 +72,7 @@ async fn test_list_products() {
     assert_eq!(products.total, 2);
     assert_eq!(products.products.len(), 2);
     assert!(products.products.iter().any(|p| p.name == "Test Product"));
-    assert!(
-        products
-            .products
-            .iter()
-            .any(|p| p.name == "Second Test Product")
-    );
+    assert!(products.products.iter().any(|p| p.name == "Second Test Product"));
 
     // Test pagination - page 1, limit 1
     let response = app
@@ -140,12 +129,7 @@ async fn test_get_product() {
 
     assert_eq!(response_product.id, product.id);
     assert_eq!(response_product.name, "Test Product");
-    assert!(
-        response_product
-            .categories
-            .iter()
-            .any(|c| c.id == category.id)
-    );
+    assert!(response_product.categories.iter().any(|c| c.id == category.id));
 
     // Test get non-existent product
     let response = app
@@ -245,9 +229,7 @@ async fn test_create_product() {
                 .method("POST")
                 .uri("/api/products")
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&invalid_category_body).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&invalid_category_body).unwrap()))
                 .unwrap(),
         )
         .await
@@ -298,10 +280,7 @@ async fn test_update_product() {
 
     assert_eq!(updated_product.id, product.id);
     assert_eq!(updated_product.name, "Updated Product");
-    assert_eq!(
-        updated_product.description,
-        Some("Updated description".to_string())
-    );
+    assert_eq!(updated_product.description, Some("Updated description".to_string()));
 
     // Test update non-existent product
     let response = app
@@ -404,9 +383,7 @@ async fn test_product_category_many_to_many() {
                 .method("POST")
                 .uri("/api/categories")
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&category2_request).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&category2_request).unwrap()))
                 .unwrap(),
         )
         .await
@@ -460,9 +437,7 @@ async fn test_product_category_many_to_many() {
                 .method("POST")
                 .uri("/api/categories")
                 .header("Content-Type", "application/json")
-                .body(Body::from(
-                    serde_json::to_string(&category3_request).unwrap(),
-                ))
+                .body(Body::from(serde_json::to_string(&category3_request).unwrap()))
                 .unwrap(),
         )
         .await
@@ -500,24 +475,9 @@ async fn test_product_category_many_to_many() {
 
     // Verify product has been updated with new categories
     assert_eq!(updated_product.categories.len(), 2);
-    assert!(
-        !updated_product
-            .categories
-            .iter()
-            .any(|c| c.id == category1.id)
-    );
-    assert!(
-        updated_product
-            .categories
-            .iter()
-            .any(|c| c.id == category2.id)
-    );
-    assert!(
-        updated_product
-            .categories
-            .iter()
-            .any(|c| c.id == category3.id)
-    );
+    assert!(!updated_product.categories.iter().any(|c| c.id == category1.id));
+    assert!(updated_product.categories.iter().any(|c| c.id == category2.id));
+    assert!(updated_product.categories.iter().any(|c| c.id == category3.id));
 
     // Clean up test data
     cleanup_test_data(&pool).await;

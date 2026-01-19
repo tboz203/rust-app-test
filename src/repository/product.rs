@@ -3,17 +3,17 @@ use std::str::FromStr;
 use anyhow::Result;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
+use sea_orm::prelude::{DateTimeWithTimeZone, Decimal};
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
-    prelude::{DateTimeWithTimeZone, Decimal},
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
-use crate::db::DatabaseConnection;
+use crate::database::DatabaseConnection;
 use crate::entity::{
     Category, CategoryModel, CategoryRelation, Product, ProductActiveModel, ProductCategory,
-    ProductCategoryActiveModel, ProductCategoryColumn, ProductCategoryModel, ProductColumn,
-    ProductModel, ProductRelation,
+    ProductCategoryActiveModel, ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel,
+    ProductRelation,
 };
 use crate::error::ApiError;
 use crate::models::product::{
@@ -34,10 +34,7 @@ impl ProductRepository {
     }
 
     /// Create a new product
-    pub async fn create_product(
-        &self,
-        req: CreateProductRequest,
-    ) -> Result<ProductResponse, ApiError> {
+    pub async fn create_product(&self, req: CreateProductRequest) -> Result<ProductResponse, ApiError> {
         // Start transaction
         let result = self
             .conn
@@ -66,10 +63,7 @@ impl ProductRepository {
                             category_id: Set(*category_id),
                         };
 
-                        product_category
-                            .insert(txn)
-                            .await
-                            .map_err(ApiError::Database)?;
+                        product_category.insert(txn).await.map_err(ApiError::Database)?;
                     }
 
                     // Fetch categories for response
@@ -114,8 +108,8 @@ impl ProductRepository {
 
         // Convert price from Sea-ORM Decimal to BigDecimal for the response
         let price_str = product.price.to_string();
-        let price = BigDecimal::from_str(&price_str)
-            .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
+        let price =
+            BigDecimal::from_str(&price_str).map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
 
         Ok(ProductResponse {
             id: product.id,
@@ -130,10 +124,7 @@ impl ProductRepository {
     }
 
     /// List products with pagination and filters
-    pub async fn list_products(
-        &self,
-        params: ProductQueryParams,
-    ) -> Result<ProductListResponse, ApiError> {
+    pub async fn list_products(&self, params: ProductQueryParams) -> Result<ProductListResponse, ApiError> {
         let page = params.page();
         let page_size = params.page_size();
 
@@ -144,19 +135,12 @@ impl ProductRepository {
         if let Some(category_id) = params.category_id {
             // Create a join with product_categories to filter by category
             query = query
-                .join(
-                    sea_orm::JoinType::InnerJoin,
-                    ProductRelation::ProductCategories.def(),
-                )
+                .join(sea_orm::JoinType::InnerJoin, ProductRelation::ProductCategories.def())
                 .filter(ProductCategoryColumn::CategoryId.eq(category_id));
         }
 
         // Count total records for pagination
-        let total = query
-            .clone()
-            .count(&self.conn)
-            .await
-            .map_err(ApiError::Database)?;
+        let total = query.clone().count(&self.conn).await.map_err(ApiError::Database)?;
 
         // Apply pagination and ordering
         // Convert i64 values to u64 to match Sea-ORM's expectation
@@ -204,11 +188,7 @@ impl ProductRepository {
     }
 
     /// Update a product
-    pub async fn update_product(
-        &self,
-        id: i32,
-        req: UpdateProductRequest,
-    ) -> Result<ProductResponse, ApiError> {
+    pub async fn update_product(&self, id: i32, req: UpdateProductRequest) -> Result<ProductResponse, ApiError> {
         // Start transaction
         let result = self
             .conn
@@ -245,10 +225,7 @@ impl ProductRepository {
                     }
 
                     // Update the product
-                    let product_model = product_active
-                        .update(txn)
-                        .await
-                        .map_err(ApiError::Database)?;
+                    let product_model = product_active.update(txn).await.map_err(ApiError::Database)?;
 
                     // Update categories if provided
                     if let Some(category_ids) = &req.category_ids {
@@ -266,10 +243,7 @@ impl ProductRepository {
                                 category_id: Set(*category_id),
                             };
 
-                            product_category
-                                .insert(txn)
-                                .await
-                                .map_err(ApiError::Database)?;
+                            product_category.insert(txn).await.map_err(ApiError::Database)?;
                         }
                     }
 
@@ -326,7 +300,8 @@ impl ProductRepository {
                         return Err(ApiError::not_found_simple("Product not found"));
                     }
 
-                    // Delete product categories (would be handled by foreign key cascade, but being explicit)
+                    // Delete product categories (would be handled by foreign key cascade, but being
+                    // explicit)
                     ProductCategory::delete_many()
                         .filter(ProductCategoryColumn::ProductId.eq(id))
                         .exec(txn)
@@ -334,10 +309,7 @@ impl ProductRepository {
                         .map_err(ApiError::Database)?;
 
                     // Delete the product
-                    Product::delete_by_id(id)
-                        .exec(txn)
-                        .await
-                        .map_err(ApiError::Database)?;
+                    Product::delete_by_id(id).exec(txn).await.map_err(ApiError::Database)?;
 
                     Ok(())
                 })
@@ -356,10 +328,7 @@ impl ProductRepository {
     ) -> Result<Vec<CategoryBrief>, sea_orm::DbErr> {
         // Using Sea-ORM relations to fetch related categories
         let categories = Category::find()
-            .join(
-                sea_orm::JoinType::InnerJoin,
-                CategoryRelation::ProductCategories.def(),
-            )
+            .join(sea_orm::JoinType::InnerJoin, CategoryRelation::ProductCategories.def())
             .filter(ProductCategoryColumn::ProductId.eq(product_id))
             .all(executor)
             .await?;

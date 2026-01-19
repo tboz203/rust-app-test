@@ -1,18 +1,13 @@
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-};
+use axum::Json;
+use axum::extract::{Path, Query, State};
 use tracing::{info, instrument};
 use validator::Validate;
 
-use crate::{
-    error::ApiError,
-    models::product::{
-        CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse,
-        UpdateProductRequest,
-    },
-    repository::product::ProductRepository,
+use crate::error::ApiError;
+use crate::models::product::{
+    CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse, UpdateProductRequest,
 };
+use crate::repository::product::ProductRepository;
 
 /// List all products with pagination
 ///
@@ -104,7 +99,5 @@ pub async fn delete_product(
     repository.delete_product(id).await?;
 
     info!("Product deleted successfully");
-    Ok(Json(
-        serde_json::json!({ "message": "Product deleted successfully" }),
-    ))
+    Ok(Json(serde_json::json!({ "message": "Product deleted successfully" })))
 }

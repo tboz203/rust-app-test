@@ -1,19 +1,14 @@
-use axum::{
-    Json,
-    extract::{Path, Query, State},
-};
+use axum::Json;
+use axum::extract::{Path, Query, State};
 use tracing::{info, instrument};
 use validator::Validate;
 
-use crate::{
-    error::ApiError,
-    models::category::{
-        CategoryListResponse, CategoryQueryParams, CategoryResponse, CreateCategoryRequest,
-        UpdateCategoryRequest,
-    },
-    models::product::ProductResponse,
-    repository::category::CategoryRepository,
+use crate::error::ApiError;
+use crate::models::category::{
+    CategoryListResponse, CategoryQueryParams, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest,
 };
+use crate::models::product::ProductResponse;
+use crate::repository::category::CategoryRepository;
 
 /// List all categories
 ///
@@ -105,9 +100,7 @@ pub async fn delete_category(
     repository.delete_category(id).await?;
 
     info!("Category deleted successfully");
-    Ok(Json(
-        serde_json::json!({ "message": "Category deleted successfully" }),
-    ))
+    Ok(Json(serde_json::json!({ "message": "Category deleted successfully" })))
 }
 
 /// Get products by category ID

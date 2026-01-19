@@ -2,7 +2,7 @@
 
 mod api;
 mod config;
-mod db;
+mod database;
 mod entity;
 mod error;
 mod models;
@@ -14,12 +14,12 @@ mod tests;
 
 use std::net::SocketAddr;
 
-use axum::{Router, routing::get};
+use axum::Router;
+use axum::routing::get;
 use config::Config;
-use db::Database;
 use dotenvy::dotenv;
-use migration::{Migrator, MigratorTrait};
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -38,11 +38,11 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::from_env()?;
 
     // Set up database connection
-    let db = Database::connect(&config.database_url).await?;
+    let db = database::connect(&config.database_url).await?;
 
     // Run database migrations
     tracing::info!("Running database migrations");
-    Migrator::up(&db, None).await?;
+    db.get_schema_registry("rust_app_test::entity::*").sync(&db).await?;
     tracing::info!("Database migrations completed successfully");
 
     // Build our application with routes
@@ -53,9 +53,7 @@ async fn main() -> anyhow::Result<()> {
     // Run our application
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    axum::Server::bind(&addr).serve(app.into_make_service()).await?;
 
     Ok(())
 }

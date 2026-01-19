@@ -32,6 +32,7 @@ impl Related<super::products::Entity> for Entity {
     fn to() -> RelationDef {
         super::product_categories::Relation::Products.def()
     }
+
     fn via() -> Option<RelationDef> {
         Some(super::product_categories::Relation::Categories.def().rev())
     }

@@ -1,34 +1,26 @@
-use axum::{
-    Router,
-    body::Body,
-    http::{Request, StatusCode},
-};
-use bigdecimal::BigDecimal;
-use dotenvy::dotenv;
-use hyper::body::to_bytes;
-use sea_orm::{
-    ColumnTrait, ConnectOptions, Database, DatabaseConnection, DeleteResult, EntityTrait,
-    QueryFilter,
-};
 use std::str::FromStr;
 use std::sync::Once;
 use std::time::Duration;
+
+use axum::Router;
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use bigdecimal::BigDecimal;
+use dotenvy::dotenv;
+use hyper::body::to_bytes;
+use sea_orm::{ColumnTrait, ConnectOptions, Database, DatabaseConnection, DeleteResult, EntityTrait, QueryFilter};
 use tower::ServiceExt;
 
-use crate::{
-    api,
-    config::Config,
-    db,
-    entity::{
-        Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory,
-        ProductCategoryModel, ProductModel,
-    },
-    models::{
-        category::{CategoryResponse, CreateCategoryRequest},
-        product::{CreateProductRequest, ProductResponse},
-    },
-    repository::{category::CategoryRepository, product::ProductRepository},
+use crate::config::Config;
+use crate::entity::{
+    Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory, ProductCategoryModel,
+    ProductModel,
 };
+use crate::models::category::{CategoryResponse, CreateCategoryRequest};
+use crate::models::product::{CreateProductRequest, ProductResponse};
+use crate::repository::category::CategoryRepository;
+use crate::repository::product::ProductRepository;
+use crate::{api, database};
 
 // Used to initialize environment only once
 static INIT: Once = Once::new();
@@ -60,15 +52,6 @@ pub async fn initialize() -> DatabaseConnection {
     let db = Database::connect(opt)
         .await
         .expect("Failed to create database connection");
-
-    // Run migrations using our custom Migrator
-    // This could use the Migrator::up method in a real implementation
-    // or the run_sql_migrations method to run existing SQL files
-    //
-    // For now we'll assume migrations are run elsewhere to avoid disrupting
-    // the database during tests
-    // crate::migration::Migrator::run_sql_migrations(&db, "./migrations").await
-    //     .expect("Failed to run database migrations");
 
     db
 }
@@ -114,7 +97,7 @@ pub async fn create_test_product(app: &Router, category_ids: Vec<i32>) -> Produc
         name: "Test Product".to_string(),
         description: Some("A test product".to_string()),
         price: BigDecimal::from_str("19.99").unwrap(),
-        category_ids: category_ids,
+        category_ids,
         sku: Some("TEST-SKU-123".to_string()),
     };
 

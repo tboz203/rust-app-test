@@ -1,14 +1,13 @@
 pub mod category;
 pub mod product;
 
-use axum::{
-    Router,
-    routing::{delete, get, post, put},
-};
+use axum::Router;
+use axum::routing::{delete, get, post, put};
 use sea_orm::DatabaseConnection;
 
-use crate::db::Database;
-use crate::repository::{category::CategoryRepository, product::ProductRepository};
+use crate::database::Database;
+use crate::repository::category::CategoryRepository;
+use crate::repository::product::ProductRepository;
 
 /// Create all routes for the API
 pub fn routes(conn: DatabaseConnection) -> Router {
@@ -41,9 +40,6 @@ fn category_routes(repository: CategoryRepository) -> Router {
         .route("/categories/:id", get(category::get_category))
         .route("/categories/:id", put(category::update_category))
         .route("/categories/:id", delete(category::delete_category))
-        .route(
-            "/categories/:id/products",
-            get(category::get_category_products),
-        )
+        .route("/categories/:id/products", get(category::get_category_products))
         .with_state(repository)
 }

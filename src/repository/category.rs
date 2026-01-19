@@ -1,28 +1,25 @@
 use std::str::FromStr;
 
-use crate::db::DatabaseConnection;
-use crate::entity::{
-    Category, CategoryActiveModel, CategoryColumn, CategoryModel, CategoryRelation, Product,
-    ProductCategory, ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel,
-    ProductRelation,
-};
-use crate::error::ApiError;
-use crate::models::{
-    category::{
-        CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse,
-        CreateCategoryRequest, UpdateCategoryRequest,
-    },
-    product::ProductResponse,
-};
-
 use anyhow::Result;
 use bigdecimal::BigDecimal;
 use chrono::{FixedOffset, Utc};
 use sea_orm::prelude::DateTimeWithTimeZone;
 use sea_orm::{
-    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter,
-    QueryOrder, QuerySelect, RelationTrait, Set, TransactionTrait,
+    ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter, QueryOrder,
+    QuerySelect, RelationTrait, Set, TransactionTrait,
 };
+
+use crate::database::DatabaseConnection;
+use crate::entity::{
+    Category, CategoryActiveModel, CategoryColumn, CategoryModel, CategoryRelation, Product, ProductCategory,
+    ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel, ProductRelation,
+};
+use crate::error::ApiError;
+use crate::models::category::{
+    CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse, CreateCategoryRequest,
+    UpdateCategoryRequest,
+};
+use crate::models::product::ProductResponse;
 
 /// Repository for category operations
 #[derive(Clone)]
@@ -37,10 +34,7 @@ impl CategoryRepository {
     }
 
     /// Create a new category
-    pub async fn create_category(
-        &self,
-        req: CreateCategoryRequest,
-    ) -> Result<CategoryResponse, ApiError> {
+    pub async fn create_category(&self, req: CreateCategoryRequest) -> Result<CategoryResponse, ApiError> {
         // Using Sea-ORM's transaction
         let result = self
             .conn
@@ -94,10 +88,7 @@ impl CategoryRepository {
     }
 
     /// List all categories
-    pub async fn list_categories(
-        &self,
-        params: CategoryQueryParams,
-    ) -> Result<CategoryListResponse, ApiError> {
+    pub async fn list_categories(&self, params: CategoryQueryParams) -> Result<CategoryListResponse, ApiError> {
         let categories = Category::find()
             .order_by_asc(CategoryColumn::Name)
             .all(&self.conn)
@@ -130,11 +121,7 @@ impl CategoryRepository {
     }
 
     /// Update a category
-    pub async fn update_category(
-        &self,
-        id: i32,
-        req: UpdateCategoryRequest,
-    ) -> Result<CategoryResponse, ApiError> {
+    pub async fn update_category(&self, id: i32, req: UpdateCategoryRequest) -> Result<CategoryResponse, ApiError> {
         // Using Sea-ORM's transaction
         let result = self
             .conn
@@ -160,10 +147,7 @@ impl CategoryRepository {
                     }
 
                     // Update the category
-                    let category_model = category_active
-                        .update(txn)
-                        .await
-                        .map_err(ApiError::Database)?;
+                    let category_model = category_active.update(txn).await.map_err(ApiError::Database)?;
 
                     Ok(CategoryResponse {
                         id: category_model.id,
@@ -208,10 +192,7 @@ impl CategoryRepository {
                         .map_err(ApiError::Database)?;
 
                     // Delete category
-                    Category::delete_by_id(id)
-                        .exec(txn)
-                        .await
-                        .map_err(ApiError::Database)?;
+                    Category::delete_by_id(id).exec(txn).await.map_err(ApiError::Database)?;
 
                     Ok(())
                 })
@@ -224,10 +205,7 @@ impl CategoryRepository {
     }
 
     /// Get products by category ID
-    pub async fn get_products_by_category(
-        &self,
-        category_id: i32,
-    ) -> Result<Vec<ProductResponse>, ApiError> {
+    pub async fn get_products_by_category(&self, category_id: i32) -> Result<Vec<ProductResponse>, ApiError> {
         // First check if category exists
         let category_exists = Category::find_by_id(category_id)
             .one(&self.conn)
@@ -241,10 +219,7 @@ impl CategoryRepository {
 
         // Find all products in this category using the product_categories relation
         let products = Product::find()
-            .join(
-                sea_orm::JoinType::InnerJoin,
-                ProductRelation::ProductCategories.def(),
-            )
+            .join(sea_orm::JoinType::InnerJoin, ProductRelation::ProductCategories.def())
             .filter(ProductCategoryColumn::CategoryId.eq(category_id))
             .all(&self.conn)
             .await
@@ -296,10 +271,7 @@ impl CategoryRepository {
     ) -> Result<Vec<crate::models::product::CategoryBrief>, ApiError> {
         // Using Sea-ORM relations to fetch related categories
         let categories = Category::find()
-            .join(
-                sea_orm::JoinType::InnerJoin,
-                CategoryRelation::ProductCategories.def(),
-            )
+            .join(sea_orm::JoinType::InnerJoin, CategoryRelation::ProductCategories.def())
             .filter(ProductCategoryColumn::ProductId.eq(product_id))
             .all(&self.conn)
             .await

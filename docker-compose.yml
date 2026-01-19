@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   app:
     build:
@@ -12,9 +10,8 @@ services:
     env_file:
       - .env
     environment:
-      # Override localhost with db container name for inter-container communication
+      # while in compose, db is on its own host (service/container)
       - POSTGRES_HOST=db
-      # Use 0.0.0.0 instead of localhost to bind to all interfaces
       - SERVER_HOST=0.0.0.0
     volumes:
       - .:/app

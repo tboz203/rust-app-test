@@ -12,7 +12,7 @@ This API provides endpoints to manage a product catalog with categories and prod
 - **Product Management**: Create, read, update, and delete products with category associations
 - **Validation**: Input validation for all API requests
 - **Error Handling**: Comprehensive error handling with appropriate HTTP status codes
-- **Database Integration**: PostgreSQL database with SQLx for type-safe queries
+- **Database Integration**: PostgreSQL database with Sea-ORM for type-safe entity management
 - **Pagination**: Support for paginated responses
 - **Documentation**: API documentation with examples
 
@@ -27,7 +27,7 @@ This API provides endpoints to manage a product catalog with categories and prod
 Major dependencies include:
 
 - **Axum**: Web framework for building the API
-- **SQLx**: Database toolkit with compile-time checked queries
+- **Sea-ORM**: Database ORM with entity management, migrations and relation handling
 - **Tokio**: Async runtime
 - **Serde**: Serialization/deserialization
 - **Validator**: Request validation
@@ -66,9 +66,10 @@ Create a `.env` file in the project root with the following variables:
 # Database configuration
 POSTGRES_HOST=localhost
 POSTGRES_PORT=5432
-POSTGRES_USER=catalog_user
-POSTGRES_PASSWORD=your_password
+POSTGRES_USER=product_catalog
+POSTGRES_PASSWORD=product_catalog
 POSTGRES_DB=product_catalog
+DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
 
 # Server configuration
 SERVER_HOST=localhost
@@ -76,13 +77,7 @@ SERVER_PORT=3000
 RUST_LOG=info
 ```
 
-### 4. Run database migrations
-
-```bash
-sqlx migrate run
-```
-
-### 5. Build and run the application
+### 4. Build and run the application
 
 ```bash
 cargo build --release
@@ -105,8 +100,43 @@ The application can be configured using environment variables:
 | `SERVER_HOST` | Host to bind the server to | 127.0.0.1 |
 | `SERVER_PORT` | Port for the HTTP server | 3000 |
 | `RUST_LOG` | Log level (error, warn, info, debug, trace) | info |
-| `DATABASE_MAX_CONNECTIONS` | Maximum database connections | 5 |
-| `CORS_ALLOWED_ORIGINS` | Comma-separated list of allowed origins | * |
+
+## Project Structure
+
+The project is organized into the following directories:
+
+- `src/api/`: API route handlers (product.rs, category.rs)
+- `src/entity/`: Sea-ORM entity definitions (products.rs, categories.rs, product_categories.rs)
+- `src/models/`: Domain models and DTOs
+- `src/repository/`: Database access logic
+- `src/tests/`: Integration tests
+- `docs/`: Additional documentation
+
+## Database Schema
+
+The database consists of the following main entities:
+
+### Products
+- `id`: Primary key
+- `name`: Product name
+- `description`: Optional product description
+- `price`: Decimal price
+- `sku`: Optional unique stock keeping unit
+- `created_at`: Timestamp
+- `updated_at`: Timestamp
+
+### Categories
+- `id`: Primary key
+- `name`: Unique category name
+- `description`: Optional category description
+- `created_at`: Timestamp
+- `updated_at`: Timestamp
+
+### ProductCategories
+- `product_id`: Foreign key to products
+- `category_id`: Foreign key to categories
+
+Products and categories have a many-to-many relationship through the ProductCategories join table.
 
 ## Testing
 

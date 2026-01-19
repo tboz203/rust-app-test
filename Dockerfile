@@ -1,4 +1,4 @@
-FROM rust:1.77-slim as builder
+FROM rust:1.92-slim-bullseye AS builder
 
 WORKDIR /app
 
@@ -7,6 +7,9 @@ RUN apt-get update && \
     apt-get install -y pkg-config libssl-dev libpq-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
+
+# Install sea-orm-cli for migrations
+RUN cargo install sea-orm-cli
 
 # Copy the Cargo files for dependency caching
 COPY Cargo.toml Cargo.lock* ./
@@ -23,13 +26,10 @@ COPY . .
 # Build the application
 RUN cargo build
 
-# Install sea-orm-cli for migrations
-RUN cargo install sea-orm-cli --no-default-features --features postgres
-
 # ================================================================================
 
 # Runtime stage
-FROM debian:bookworm-slim
+FROM debian:bullseye-slim AS runtime
 
 WORKDIR /app
 
@@ -39,14 +39,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy the binary from the builder stage
 COPY --from=builder /app/target/debug/product-catalog-api /app/product-catalog-api
-
-# Copy sea-orm-cli for migrations
 COPY --from=builder /usr/local/cargo/bin/sea-orm-cli /usr/local/bin/sea-orm-cli
 
-# Copy migrations for Sea ORM
-COPY --from=builder /app/migrations /app/migrations
-
-# Set the entrypoint
 CMD ["/app/product-catalog-api"]

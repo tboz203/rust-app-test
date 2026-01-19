@@ -1,0 +1,13 @@
+# Docker ignore file
+
+# Hidden files
+.*
+
+# Docker files
+Dockerfile
+*.Dockerfile
+docker-compose.yml
+docker-compose.yaml
+
+# Build artifacts
+/target/

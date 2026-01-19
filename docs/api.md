@@ -35,11 +35,11 @@ All successful responses return JSON data with appropriate HTTP status codes.
 
 ## Common Error Codes
 
-| Status Code | Description |
-|-------------|-------------|
-| 400 | Bad Request - Invalid input or validation errors |
-| 404 | Not Found - Resource doesn't exist |
-| 500 | Internal Server Error - Something went wrong on the server |
+| Status Code | Description                                                |
+|-------------|------------------------------------------------------------|
+| 400         | Bad Request - Invalid input or validation errors           |
+| 404         | Not Found - Resource doesn't exist                         |
+| 500         | Internal Server Error - Something went wrong on the server |
 
 Error responses have the following format:
 
@@ -64,12 +64,11 @@ Returns a paginated list of products.
 - **Method**: `GET`
 - **Query Parameters**:
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| page | integer | No | 1 | Page number |
-| page_size | integer | No | 10 | Items per page |
-| category_id | integer | No | - | Filter by category ID |
-| in_stock | boolean | No | - | Filter by in-stock status |
+| Parameter   | Type    | Required | Default | Description           |
+|-------------|---------|----------|---------|-----------------------|
+| page        | integer | No       | 1       | Page number           |
+| page_size   | integer | No       | 10      | Items per page        |
+| category_id | integer | No       | -       | Filter by category ID |
 
 #### Example Request
 
@@ -87,11 +86,13 @@ GET /api/products?page=1&page_size=5&category_id=2
       "name": "Classic T-Shirt",
       "description": "Comfortable cotton t-shirt",
       "price": "19.99",
-      "category_id": 2,
       "sku": "TS-CL-001",
-      "in_stock": true,
-      "weight": 0.25,
-      "dimensions": "25x35x3",
+      "categories": [
+        {
+          "id": 2,
+          "name": "Clothing"
+        }
+      ],
       "created_at": "2026-01-15T10:30:00Z",
       "updated_at": "2026-01-15T10:30:00Z"
     },
@@ -100,19 +101,20 @@ GET /api/products?page=1&page_size=5&category_id=2
       "name": "Denim Jeans",
       "description": "Classic denim jeans",
       "price": "59.99",
-      "category_id": 2,
       "sku": "DN-JN-002",
-      "in_stock": true,
-      "weight": 0.8,
-      "dimensions": "30x40x5",
+      "categories": [
+        {
+          "id": 2,
+          "name": "Clothing"
+        }
+      ],
       "created_at": "2026-01-15T11:15:00Z",
       "updated_at": "2026-01-15T11:15:00Z"
     }
   ],
   "page": 1,
   "page_size": 5,
-  "total": 2,
-  "total_pages": 1
+  "total": 2
 }
 ```
 
@@ -126,9 +128,9 @@ Returns detailed information about a specific product.
 - **Method**: `GET`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Product ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Product ID  |
 
 #### Example Request
 
@@ -144,12 +146,13 @@ GET /api/products/1
   "name": "Classic T-Shirt",
   "description": "Comfortable cotton t-shirt",
   "price": "19.99",
-  "category_id": 2,
-  "category_name": "Clothing",
   "sku": "TS-CL-001",
-  "in_stock": true,
-  "weight": 0.25,
-  "dimensions": "25x35x3",
+  "categories": [
+    {
+      "id": 2,
+      "name": "Clothing"
+    }
+  ],
   "created_at": "2026-01-15T10:30:00Z",
   "updated_at": "2026-01-15T10:30:00Z"
 }
@@ -162,8 +165,7 @@ GET /api/products/1
 ```json
 {
   "error": {
-    "code": "PRODUCT_NOT_FOUND",
-    "message": "Product with ID 999 not found"
+    "message": "Product not found"
   }
 }
 ```
@@ -179,16 +181,13 @@ Creates a new product.
 - **Content-Type**: `application/json`
 - **Request Body**:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Product name (1-100 chars) |
-| description | string | No | Product description |
-| price | decimal | Yes | Product price (>= 0) |
-| category_id | integer | Yes | Category ID |
-| sku | string | No | Stock keeping unit |
-| in_stock | boolean | Yes | Whether the product is in stock |
-| weight | decimal | No | Product weight in kg |
-| dimensions | string | No | Product dimensions (format: LxWxH) |
+| Field        | Type    | Required | Description                       |
+|--------------|---------|----------|-----------------------------------|
+| name         | string  | Yes      | Product name (1-255 chars)        |
+| description  | string  | No       | Product description               |
+| price        | decimal | Yes      | Product price (>= 0)              |
+| category_ids | array   | Yes      | Array of category IDs             |
+| sku          | string  | No       | Stock keeping unit (max 50 chars) |
 
 #### Example Request
 
@@ -197,11 +196,8 @@ Creates a new product.
   "name": "Wireless Headphones",
   "description": "High-quality wireless headphones with noise cancellation",
   "price": "129.99",
-  "category_id": 3,
-  "sku": "WL-HP-001",
-  "in_stock": true,
-  "weight": 0.3,
-  "dimensions": "20x15x8"
+  "category_ids": [3],
+  "sku": "WL-HP-001"
 }
 ```
 
@@ -213,12 +209,13 @@ Creates a new product.
   "name": "Wireless Headphones",
   "description": "High-quality wireless headphones with noise cancellation",
   "price": "129.99",
-  "category_id": 3,
-  "category_name": "Electronics",
   "sku": "WL-HP-001",
-  "in_stock": true,
-  "weight": 0.3,
-  "dimensions": "20x15x8",
+  "categories": [
+    {
+      "id": 3,
+      "name": "Electronics"
+    }
+  ],
   "created_at": "2026-01-17T14:25:30Z",
   "updated_at": "2026-01-17T14:25:30Z"
 }
@@ -231,10 +228,9 @@ Creates a new product.
 ```json
 {
   "error": {
-    "code": "VALIDATION_ERROR",
     "message": "Validation failed",
-    "details": {
-      "name": ["Name cannot be empty"],
+    "fields": {
+      "name": ["Product name cannot be empty and must be less than 256 characters"],
       "price": ["Price must be a positive number"]
     }
   }
@@ -252,29 +248,26 @@ Updates an existing product.
 - **Content-Type**: `application/json`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Product ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Product ID  |
 
 - **Request Body**: All fields are optional. Only provided fields will be updated.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | No | Product name (1-100 chars) |
-| description | string | No | Product description |
-| price | decimal | No | Product price (>= 0) |
-| category_id | integer | No | Category ID |
-| sku | string | No | Stock keeping unit |
-| in_stock | boolean | No | Whether the product is in stock |
-| weight | decimal | No | Product weight in kg |
-| dimensions | string | No | Product dimensions (format: LxWxH) |
+| Field        | Type    | Required | Description                       |
+|--------------|---------|----------|-----------------------------------|
+| name         | string  | No       | Product name (1-255 chars)        |
+| description  | string  | No       | Product description               |
+| price        | decimal | No       | Product price (>= 0)              |
+| category_ids | array   | No       | Array of category IDs             |
+| sku          | string  | No       | Stock keeping unit (max 50 chars) |
 
 #### Example Request
 
 ```json
 {
   "price": "149.99",
-  "in_stock": false
+  "category_ids": [3, 4]
 }
 ```
 
@@ -286,12 +279,17 @@ Updates an existing product.
   "name": "Wireless Headphones",
   "description": "High-quality wireless headphones with noise cancellation",
   "price": "149.99",
-  "category_id": 3,
-  "category_name": "Electronics",
   "sku": "WL-HP-001",
-  "in_stock": false,
-  "weight": 0.3,
-  "dimensions": "20x15x8",
+  "categories": [
+    {
+      "id": 3,
+      "name": "Electronics"
+    },
+    {
+      "id": 4,
+      "name": "Accessories"
+    }
+  ],
   "created_at": "2026-01-17T14:25:30Z",
   "updated_at": "2026-01-17T14:30:45Z"
 }
@@ -312,9 +310,9 @@ Deletes a product.
 - **Method**: `DELETE`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Product ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Product ID  |
 
 #### Example Request
 
@@ -346,9 +344,9 @@ Returns a list of all categories.
 - **Method**: `GET`
 - **Query Parameters**:
 
-| Parameter | Type | Required | Default | Description |
-|-----------|------|----------|---------|-------------|
-| include_product_count | boolean | No | false | Include product count for each category |
+| Parameter             | Type    | Required | Default | Description                             |
+|-----------------------|---------|----------|---------|-----------------------------------------|
+| include_product_count | boolean | No       | false   | Include product count for each category |
 
 #### Example Request
 
@@ -399,9 +397,9 @@ Returns detailed information about a specific category.
 - **Method**: `GET`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Category ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Category ID |
 
 #### Example Request
 
@@ -436,10 +434,10 @@ Creates a new category.
 - **Content-Type**: `application/json`
 - **Request Body**:
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | Yes | Category name (1-50 chars) |
-| description | string | No | Category description |
+| Field       | Type   | Required | Description                |
+|-------------|--------|----------|----------------------------|
+| name        | string | Yes      | Category name (1-50 chars) |
+| description | string | No       | Category description       |
 
 #### Example Request
 
@@ -477,16 +475,16 @@ Updates an existing category.
 - **Content-Type**: `application/json`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Category ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Category ID |
 
 - **Request Body**: All fields are optional. Only provided fields will be updated.
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| name | string | No | Category name (1-50 chars) |
-| description | string | No | Category description |
+| Field       | Type   | Required | Description                |
+|-------------|--------|----------|----------------------------|
+| name        | string | No       | Category name (1-50 chars) |
+| description | string | No       | Category description       |
 
 #### Example Request
 
@@ -524,9 +522,9 @@ Deletes a category.
 - **Method**: `DELETE`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Category ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Category ID |
 
 #### Example Request
 
@@ -557,9 +555,9 @@ Returns all products belonging to a specific category.
 - **Method**: `GET`
 - **URL Parameters**:
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| id | integer | Yes | Category ID |
+| Parameter | Type    | Required | Description |
+|-----------|---------|----------|-------------|
+| id        | integer | Yes      | Category ID |
 
 #### Example Request
 
@@ -570,34 +568,43 @@ GET /api/categories/2/products
 #### Example Response
 
 ```json
-[
-  {
-    "id": 1,
-    "name": "Classic T-Shirt",
-    "description": "Comfortable cotton t-shirt",
-    "price": "19.99",
-    "category_id": 2,
-    "sku": "TS-CL-001",
-    "in_stock": true,
-    "weight": 0.25,
-    "dimensions": "25x35x3",
-    "created_at": "2026-01-15T10:30:00Z",
-    "updated_at": "2026-01-15T10:30:00Z"
-  },
-  {
-    "id": 2,
-    "name": "Denim Jeans",
-    "description": "Classic denim jeans",
-    "price": "59.99",
-    "category_id": 2,
-    "sku": "DN-JN-002",
-    "in_stock": true,
-    "weight": 0.8,
-    "dimensions": "30x40x5",
-    "created_at": "2026-01-15T11:15:00Z",
-    "updated_at": "2026-01-15T11:15:00Z"
-  }
-]
+{
+  "products": [
+    {
+      "id": 1,
+      "name": "Classic T-Shirt",
+      "description": "Comfortable cotton t-shirt",
+      "price": "19.99",
+      "sku": "TS-CL-001",
+      "categories": [
+        {
+          "id": 2,
+          "name": "Clothing"
+        }
+      ],
+      "created_at": "2026-01-15T10:30:00Z",
+      "updated_at": "2026-01-15T10:30:00Z"
+    },
+    {
+      "id": 2,
+      "name": "Denim Jeans",
+      "description": "Classic denim jeans",
+      "price": "59.99",
+      "sku": "DN-JN-002",
+      "categories": [
+        {
+          "id": 2,
+          "name": "Clothing"
+        }
+      ],
+      "created_at": "2026-01-15T11:15:00Z",
+      "updated_at": "2026-01-15T11:15:00Z"
+    }
+  ],
+  "total": 2,
+  "page": 1,
+  "page_size": 10
+}
 ```
 
 #### Error Responses

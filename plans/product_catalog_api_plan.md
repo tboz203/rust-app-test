@@ -19,6 +19,8 @@ The project will create a RESTful API for managing product catalog data with bas
 - **Error Handling**: thiserror + anyhow
 - **Validation**: validator
 
+> **Note (2026):** The actual implementation uses Sea-ORM instead of SQLx directly. Sea-ORM provides a more robust entity model system, relationship handling, and migration tools. See the `sea-orm` dependency in Cargo.toml with features like "schema-sync" and "entity-registry".
+
 ## Project Structure
 
 ```
@@ -51,6 +53,16 @@ product-catalog-api/
         ├── mod.rs
         └── product.rs        # Product validation
 ```
+> **Note (2026):** The actual implementation includes an additional `entity/` directory that contains Sea-ORM generated entity files:
+> ```
+> src/
+> └── entity/
+>     ├── mod.rs
+>     ├── categories.rs       # Category entity model
+>     ├── products.rs         # Product entity model
+>     └── product_categories.rs # Junction table entity
+> ```
+> These entity files are generated automatically by Sea-ORM's code generator and define the database schema through Rust code rather than raw SQL.
 
 ## Database Schema
 
@@ -160,6 +172,11 @@ sequenceDiagram
 4. **Create data models and database access layer**
    - Define Rust structs for database entities
    - Implement repository pattern for data access
+
+> **Note (2026):** The implementation follows a three-layer model approach:
+> 1. Sea-ORM generated entity models in the `entity/` directory
+> 2. Domain models in the `models/` directory for API interactions
+> 3. Repository implementations in the `repository/` directory that translate between entities and domain models
 
 5. **Implement API endpoints**
    - Create route handlers for CRUD operations

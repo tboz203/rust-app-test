@@ -1,25 +1,27 @@
 use axum::{
+    Router,
     body::Body,
     http::{Request, StatusCode},
-    Router,
 };
-use hyper::body::to_bytes;
-use tower::ServiceExt;
 use bigdecimal::BigDecimal;
 use dotenvy::dotenv;
-use sea_orm::{DatabaseConnection, Database, ConnectOptions, EntityTrait, DeleteResult, QueryFilter, ColumnTrait};
+use hyper::body::to_bytes;
+use sea_orm::{
+    ColumnTrait, ConnectOptions, Database, DatabaseConnection, DeleteResult, EntityTrait,
+    QueryFilter,
+};
 use std::str::FromStr;
 use std::sync::Once;
 use std::time::Duration;
+use tower::ServiceExt;
 
 use crate::{
     api,
     config::Config,
     db,
     entity::{
-        Category, CategoryModel, CategoryActiveModel,
-        Product, ProductModel, ProductActiveModel,
-        ProductCategory, ProductCategoryModel
+        Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory,
+        ProductCategoryModel, ProductModel,
     },
     models::{
         category::{CategoryResponse, CreateCategoryRequest},
@@ -145,13 +147,13 @@ pub async fn cleanup_test_data(db: &DatabaseConnection) {
         .exec(db)
         .await
         .expect("Failed to delete product categories");
-    
+
     // Then delete products
     let _ = Product::delete_many()
         .exec(db)
         .await
         .expect("Failed to delete products");
-    
+
     // Finally delete categories
     let _ = Category::delete_many()
         .exec(db)

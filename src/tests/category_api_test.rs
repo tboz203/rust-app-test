@@ -1,21 +1,20 @@
 use crate::{
     entity::{
-        Category, CategoryModel, CategoryActiveModel,
-        Product, ProductModel, ProductActiveModel,
-        ProductCategory, ProductCategoryModel,
+        Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory,
+        ProductCategoryModel, ProductModel,
     },
     models::category::{
         CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest,
     },
-    models::product::{ProductResponse, CreateProductRequest},
+    models::product::{CreateProductRequest, ProductResponse},
 };
 use axum::{
     body::Body,
     http::{Request, StatusCode},
 };
-use tower::ServiceExt;
 use bigdecimal::BigDecimal;
 use std::str::FromStr;
+use tower::ServiceExt;
 
 // Import from common module
 use super::common::{
@@ -71,14 +70,18 @@ async fn test_list_categories() {
     let categories: CategoryListResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(categories.categories.len(), 2);
-    assert!(categories
-        .categories
-        .iter()
-        .any(|c| c.name == "Test Category"));
-    assert!(categories
-        .categories
-        .iter()
-        .any(|c| c.name == "Second Test Category"));
+    assert!(
+        categories
+            .categories
+            .iter()
+            .any(|c| c.name == "Test Category")
+    );
+    assert!(
+        categories
+            .categories
+            .iter()
+            .any(|c| c.name == "Second Test Category")
+    );
 
     // Test list categories with product count
     let response: axum::response::Response = app
@@ -99,10 +102,12 @@ async fn test_list_categories() {
     let categories: CategoryListResponse = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(categories.categories.len(), 2);
-    assert!(categories
-        .categories
-        .iter()
-        .all(|c| c.product_count.is_some()));
+    assert!(
+        categories
+            .categories
+            .iter()
+            .all(|c| c.product_count.is_some())
+    );
 
     // Clean up test data
     cleanup_test_data(&pool).await;

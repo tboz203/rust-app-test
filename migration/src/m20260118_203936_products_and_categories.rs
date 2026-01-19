@@ -17,12 +17,20 @@ impl MigrationTrait for Migration {
                     .col(text(Products::Description))
                     .col(decimal_len(Products::Price, 10, 2).not_null())
                     .col(string_len(Products::Sku, 50).unique_key())
-                    .col(timestamp_with_time_zone(Products::CreatedAt).not_null().default(Expr::current_timestamp()))
-                    .col(timestamp_with_time_zone(Products::UpdatedAt).not_null().default(Expr::current_timestamp()))
+                    .col(
+                        timestamp_with_time_zone(Products::CreatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp_with_time_zone(Products::UpdatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;
-        
+
         // Create categories table
         manager
             .create_table(
@@ -32,12 +40,20 @@ impl MigrationTrait for Migration {
                     .col(pk_auto(Categories::Id))
                     .col(string_len(Categories::Name, 100).not_null().unique_key())
                     .col(text(Categories::Description))
-                    .col(timestamp_with_time_zone(Categories::CreatedAt).not_null().default(Expr::current_timestamp()))
-                    .col(timestamp_with_time_zone(Categories::UpdatedAt).not_null().default(Expr::current_timestamp()))
+                    .col(
+                        timestamp_with_time_zone(Categories::CreatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
+                    .col(
+                        timestamp_with_time_zone(Categories::UpdatedAt)
+                            .not_null()
+                            .default(Expr::current_timestamp()),
+                    )
                     .to_owned(),
             )
             .await?;
-        
+
         // Create product_categories join table
         manager
             .create_table(
@@ -49,24 +65,24 @@ impl MigrationTrait for Migration {
                     .primary_key(
                         Index::create()
                             .col(ProductCategories::ProductId)
-                            .col(ProductCategories::CategoryId)
+                            .col(ProductCategories::CategoryId),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from(ProductCategories::Table, ProductCategories::ProductId)
                             .to(Products::Table, Products::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .from(ProductCategories::Table, ProductCategories::CategoryId)
                             .to(Categories::Table, Categories::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
             .await?;
-        
+
         Ok(())
     }
 
@@ -75,15 +91,15 @@ impl MigrationTrait for Migration {
         manager
             .drop_table(Table::drop().table(ProductCategories::Table).to_owned())
             .await?;
-            
+
         manager
             .drop_table(Table::drop().table(Categories::Table).to_owned())
             .await?;
-            
+
         manager
             .drop_table(Table::drop().table(Products::Table).to_owned())
             .await?;
-            
+
         Ok(())
     }
 }

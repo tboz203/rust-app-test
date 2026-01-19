@@ -1,13 +1,13 @@
 #![allow(unused)]
 
-pub mod api;
-pub mod config;
-pub mod db;
-pub mod entity;
-pub mod error;
-pub mod models;
-pub mod repository;
-pub mod validation;
+mod api;
+mod config;
+mod db;
+mod entity;
+mod error;
+mod models;
+mod repository;
+mod validation;
 
 #[cfg(test)]
 mod tests;
@@ -53,8 +53,6 @@ async fn main() -> anyhow::Result<()> {
     // Run our application
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
     tracing::info!("Listening on {}", addr);
-
-    // Use hyper's Server with Axum 0.6.x
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
         .await?;

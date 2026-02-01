@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
     // Build our application with routes
     let app = Router::new()
         .nest("/api", api::routes(db))
-        .route("/health", get(health_check));
+        .route("/health", get(async || "OK"));
 
     // Run our application
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server_port));
@@ -56,8 +56,4 @@ async fn main() -> anyhow::Result<()> {
     axum::Server::bind(&addr).serve(app.into_make_service()).await?;
 
     Ok(())
-}
-
-async fn health_check() -> &'static str {
-    "OK"
 }

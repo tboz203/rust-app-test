@@ -9,10 +9,7 @@ use tower::ServiceExt;
 use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
 // Import from crate root using the lib.rs exports
 use crate::{
-    entity::{
-        Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory,
-        ProductCategoryModel, ProductModel,
-    },
+    entity::{categories, product_categories, products},
     models::{
         category::{CategoryResponse, CreateCategoryRequest},
         product::{CategoryBrief, CreateProductRequest, ProductListResponse, ProductResponse, UpdateProductRequest},

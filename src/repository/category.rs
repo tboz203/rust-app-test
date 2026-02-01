@@ -10,10 +10,7 @@ use sea_orm::{
 };
 
 use crate::database::DatabaseConnection;
-use crate::entity::{
-    Category, CategoryActiveModel, CategoryColumn, CategoryModel, CategoryRelation, Product, ProductCategory,
-    ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel, ProductRelation,
-};
+use crate::entity::{categories, product_categories, products};
 use crate::error::ApiError;
 use crate::models::category::{
     CategoryListResponse, CategoryQueryParams, CategoryResponse, CategoryWithProductsResponse, CreateCategoryRequest,
@@ -41,7 +38,7 @@ impl CategoryRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Create category active model
-                    let category = CategoryActiveModel {
+                    let category = categories::ActiveModel {
                         name: Set(req.name.clone()),
                         description: Set(req.description.clone()),
                         ..Default::default()
@@ -71,7 +68,7 @@ impl CategoryRepository {
     /// Get a category by ID
     pub async fn get_category(&self, id: i32) -> Result<CategoryResponse, ApiError> {
         // Find category by ID
-        let category = Category::find_by_id(id)
+        let category = categories::Entity::find_by_id(id)
             .one(&self.conn)
             .await
             .map_err(ApiError::Database)?
@@ -89,8 +86,8 @@ impl CategoryRepository {
 
     /// List all categories
     pub async fn list_categories(&self, params: CategoryQueryParams) -> Result<CategoryListResponse, ApiError> {
-        let categories = Category::find()
-            .order_by_asc(CategoryColumn::Name)
+        let categories = categories::Entity::find()
+            .order_by_asc(categories::Column::Name)
             .all(&self.conn)
             .await
             .map_err(ApiError::Database)?;
@@ -128,14 +125,14 @@ impl CategoryRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Find category by ID
-                    let category = Category::find_by_id(id)
+                    let category = categories::Entity::find_by_id(id)
                         .one(txn)
                         .await
                         .map_err(ApiError::Database)?
                         .ok_or_else(|| ApiError::not_found_simple("Category not found"))?;
 
                     // Create active model for update
-                    let mut category_active: CategoryActiveModel = category.clone().into();
+                    let mut category_active: categories::ActiveModel = category.clone().into();
 
                     // Update fields if provided
                     if let Some(name) = req.name {
@@ -174,7 +171,7 @@ impl CategoryRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Check if category exists
-                    let category_exists = Category::find_by_id(id)
+                    let category_exists = categories::Entity::find_by_id(id)
                         .one(txn)
                         .await
                         .map_err(ApiError::Database)?
@@ -185,14 +182,17 @@ impl CategoryRepository {
                     }
 
                     // Delete product categories
-                    ProductCategory::delete_many()
-                        .filter(ProductCategoryColumn::CategoryId.eq(id))
+                    product_categories::Entity::delete_many()
+                        .filter(product_categories::Column::CategoryId.eq(id))
                         .exec(txn)
                         .await
                         .map_err(ApiError::Database)?;
 
                     // Delete category
-                    Category::delete_by_id(id).exec(txn).await.map_err(ApiError::Database)?;
+                    categories::Entity::delete_by_id(id)
+                        .exec(txn)
+                        .await
+                        .map_err(ApiError::Database)?;
 
                     Ok(())
                 })
@@ -207,7 +207,7 @@ impl CategoryRepository {
     /// Get products by category ID
     pub async fn get_products_by_category(&self, category_id: i32) -> Result<Vec<ProductResponse>, ApiError> {
         // First check if category exists
-        let category_exists = Category::find_by_id(category_id)
+        let category_exists = categories::Entity::find_by_id(category_id)
             .one(&self.conn)
             .await
             .map_err(ApiError::Database)?
@@ -218,9 +218,12 @@ impl CategoryRepository {
         }
 
         // Find all products in this category using the product_categories relation
-        let products = Product::find()
-            .join(sea_orm::JoinType::InnerJoin, ProductRelation::ProductCategories.def())
-            .filter(ProductCategoryColumn::CategoryId.eq(category_id))
+        let products = products::Entity::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                products::Relation::ProductCategories.def(),
+            )
+            .filter(product_categories::Column::CategoryId.eq(category_id))
             .all(&self.conn)
             .await
             .map_err(ApiError::Database)?;
@@ -255,8 +258,8 @@ impl CategoryRepository {
     /// Helper method to count products in a category
     async fn count_products_in_category(&self, category_id: i32) -> Result<i64, ApiError> {
         // Count products using the product_categories relation
-        let count = ProductCategory::find()
-            .filter(ProductCategoryColumn::CategoryId.eq(category_id))
+        let count = product_categories::Entity::find()
+            .filter(product_categories::Column::CategoryId.eq(category_id))
             .count(&self.conn)
             .await
             .map_err(ApiError::Database)?;
@@ -270,9 +273,12 @@ impl CategoryRepository {
         product_id: i32,
     ) -> Result<Vec<crate::models::product::CategoryBrief>, ApiError> {
         // Using Sea-ORM relations to fetch related categories
-        let categories = Category::find()
-            .join(sea_orm::JoinType::InnerJoin, CategoryRelation::ProductCategories.def())
-            .filter(ProductCategoryColumn::ProductId.eq(product_id))
+        let categories = categories::Entity::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                categories::Relation::ProductCategories.def(),
+            )
+            .filter(product_categories::Column::ProductId.eq(product_id))
             .all(&self.conn)
             .await
             .map_err(ApiError::Database)?;

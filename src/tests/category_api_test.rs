@@ -5,12 +5,8 @@ use axum::http::{Request, StatusCode};
 use bigdecimal::BigDecimal;
 use tower::ServiceExt;
 
-// Import from common module
 use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
-use crate::entity::{
-    Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory, ProductCategoryModel,
-    ProductModel,
-};
+use crate::entity::{categories, product_categories, products};
 use crate::models::category::{CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest};
 use crate::models::product::{CreateProductRequest, ProductResponse};
 

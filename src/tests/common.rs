@@ -12,10 +12,7 @@ use sea_orm::{ColumnTrait, ConnectOptions, Database, DatabaseConnection, DeleteR
 use tower::ServiceExt;
 
 use crate::config::Config;
-use crate::entity::{
-    Category, CategoryActiveModel, CategoryModel, Product, ProductActiveModel, ProductCategory, ProductCategoryModel,
-    ProductModel,
-};
+use crate::entity::{categories, product_categories, products};
 use crate::models::category::{CategoryResponse, CreateCategoryRequest};
 use crate::models::product::{CreateProductRequest, ProductResponse};
 use crate::repository::category::CategoryRepository;
@@ -49,11 +46,9 @@ pub async fn initialize() -> DatabaseConnection {
         .connect_timeout(Duration::from_secs(3))
         .idle_timeout(Duration::from_secs(60));
 
-    let db = Database::connect(opt)
+    Database::connect(opt)
         .await
-        .expect("Failed to create database connection");
-
-    db
+        .expect("Failed to create database connection")
 }
 
 /// Create a test application
@@ -126,19 +121,19 @@ pub async fn create_test_product(app: &Router, category_ids: Vec<i32>) -> Produc
 pub async fn cleanup_test_data(db: &DatabaseConnection) {
     // Delete all data in the correct order to respect foreign key constraints
     // First delete the product_categories (junction table)
-    let _ = ProductCategory::delete_many()
+    let _ = product_categories::Entity::delete_many()
         .exec(db)
         .await
         .expect("Failed to delete product categories");
 
     // Then delete products
-    let _ = Product::delete_many()
+    let _ = products::Entity::delete_many()
         .exec(db)
         .await
         .expect("Failed to delete products");
 
     // Finally delete categories
-    let _ = Category::delete_many()
+    let _ = categories::Entity::delete_many()
         .exec(db)
         .await
         .expect("Failed to delete categories");

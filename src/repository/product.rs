@@ -3,18 +3,14 @@ use std::str::FromStr;
 use anyhow::Result;
 use bigdecimal::BigDecimal;
 use chrono::Utc;
-use sea_orm::prelude::{DateTimeWithTimeZone, Decimal};
+use sea_orm::prelude::*;
 use sea_orm::{
     ActiveModelTrait, ColumnTrait, Condition, EntityTrait, ModelTrait, PaginatorTrait, QueryFilter, QueryOrder,
     QuerySelect, RelationTrait, Set, TransactionTrait,
 };
 
 use crate::database::DatabaseConnection;
-use crate::entity::{
-    Category, CategoryModel, CategoryRelation, Product, ProductActiveModel, ProductCategory,
-    ProductCategoryActiveModel, ProductCategoryColumn, ProductCategoryModel, ProductColumn, ProductModel,
-    ProductRelation,
-};
+use crate::entity::{categories, product_categories, products};
 use crate::error::ApiError;
 use crate::models::product::{
     CategoryBrief, CreateProductRequest, ProductListResponse, ProductQueryParams, ProductResponse,
@@ -40,15 +36,10 @@ impl ProductRepository {
             .conn
             .transaction(|txn| {
                 Box::pin(async move {
-                    // Convert BigDecimal to Decimal
-                    let price_str = req.price.to_string();
-                    let sea_orm_price = Decimal::from_str(&price_str)
-                        .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
-
-                    let product = ProductActiveModel {
+                    let product = products::ActiveModel {
                         name: Set(req.name.clone()),
                         description: Set(req.description.clone()),
-                        price: Set(sea_orm_price),
+                        price: Set(req.price.clone()),
                         sku: Set(req.sku.clone()),
                         ..Default::default()
                     };
@@ -58,7 +49,7 @@ impl ProductRepository {
 
                     // Insert product categories
                     for category_id in &req.category_ids {
-                        let product_category = ProductCategoryActiveModel {
+                        let product_category = product_categories::ActiveModel {
                             product_id: Set(product_model.id),
                             category_id: Set(*category_id),
                         };
@@ -75,7 +66,7 @@ impl ProductRepository {
                         id: product_model.id,
                         name: product_model.name,
                         description: product_model.description,
-                        price: req.price,
+                        price: req.price.clone(),
                         sku: product_model.sku,
                         categories,
                         created_at: product_model.created_at,
@@ -95,7 +86,7 @@ impl ProductRepository {
     /// Get a product by ID
     pub async fn get_product(&self, id: i32) -> Result<ProductResponse, ApiError> {
         // Find product by ID
-        let product = Product::find_by_id(id)
+        let product = products::Entity::find_by_id(id)
             .one(&self.conn)
             .await
             .map_err(ApiError::Database)?
@@ -129,14 +120,17 @@ impl ProductRepository {
         let page_size = params.page_size();
 
         // Build query
-        let mut query = Product::find();
+        let mut query = products::Entity::find();
 
         // Apply category filter if present
         if let Some(category_id) = params.category_id {
             // Create a join with product_categories to filter by category
             query = query
-                .join(sea_orm::JoinType::InnerJoin, ProductRelation::ProductCategories.def())
-                .filter(ProductCategoryColumn::CategoryId.eq(category_id));
+                .join(
+                    sea_orm::JoinType::InnerJoin,
+                    products::Relation::ProductCategories.def(),
+                )
+                .filter(product_categories::Column::CategoryId.eq(category_id));
         }
 
         // Count total records for pagination
@@ -148,7 +142,7 @@ impl ProductRepository {
         let limit = page_size as u64;
 
         let products = query
-            .order_by_asc(ProductColumn::Id)
+            .order_by_asc(products::Column::Id)
             .offset(offset)
             .limit(limit)
             .all(&self.conn)
@@ -195,14 +189,14 @@ impl ProductRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Find product by ID
-                    let product = Product::find_by_id(id)
+                    let product = products::Entity::find_by_id(id)
                         .one(txn)
                         .await
                         .map_err(ApiError::Database)?
                         .ok_or_else(|| ApiError::not_found_simple("Product not found"))?;
 
                     // Create active model for update
-                    let mut product_active: ProductActiveModel = product.clone().into();
+                    let mut product_active: products::ActiveModel = product.clone().into();
 
                     // Update fields if provided
                     if let Some(name) = req.name {
@@ -214,10 +208,7 @@ impl ProductRepository {
                     }
 
                     if let Some(price) = &req.price {
-                        let price_str: String = price.to_string();
-                        let sea_orm_price: Decimal = Decimal::from_str(&price_str)
-                            .map_err(|_| ApiError::internal_server_error("Invalid price format"))?;
-                        product_active.price = Set(sea_orm_price);
+                        product_active.price = Set(price.clone());
                     }
 
                     if let Some(sku) = req.sku {
@@ -230,15 +221,15 @@ impl ProductRepository {
                     // Update categories if provided
                     if let Some(category_ids) = &req.category_ids {
                         // Delete existing product categories
-                        ProductCategory::delete_many()
-                            .filter(ProductCategoryColumn::ProductId.eq(id))
+                        product_categories::Entity::delete_many()
+                            .filter(product_categories::Column::ProductId.eq(id))
                             .exec(txn)
                             .await
                             .map_err(ApiError::Database)?;
 
                         // Insert new product categories
                         for category_id in category_ids {
-                            let product_category = ProductCategoryActiveModel {
+                            let product_category = product_categories::ActiveModel {
                                 product_id: Set(id),
                                 category_id: Set(*category_id),
                             };
@@ -290,7 +281,7 @@ impl ProductRepository {
             .transaction(|txn| {
                 Box::pin(async move {
                     // Check if product exists
-                    let product_exists = Product::find_by_id(id)
+                    let product_exists = products::Entity::find_by_id(id)
                         .one(txn)
                         .await
                         .map_err(ApiError::Database)?
@@ -302,14 +293,17 @@ impl ProductRepository {
 
                     // Delete product categories (would be handled by foreign key cascade, but being
                     // explicit)
-                    ProductCategory::delete_many()
-                        .filter(ProductCategoryColumn::ProductId.eq(id))
+                    product_categories::Entity::delete_many()
+                        .filter(product_categories::Column::ProductId.eq(id))
                         .exec(txn)
                         .await
                         .map_err(ApiError::Database)?;
 
                     // Delete the product
-                    Product::delete_by_id(id).exec(txn).await.map_err(ApiError::Database)?;
+                    products::Entity::delete_by_id(id)
+                        .exec(txn)
+                        .await
+                        .map_err(ApiError::Database)?;
 
                     Ok(())
                 })
@@ -327,9 +321,12 @@ impl ProductRepository {
         executor: &impl sea_orm::ConnectionTrait,
     ) -> Result<Vec<CategoryBrief>, sea_orm::DbErr> {
         // Using Sea-ORM relations to fetch related categories
-        let categories = Category::find()
-            .join(sea_orm::JoinType::InnerJoin, CategoryRelation::ProductCategories.def())
-            .filter(ProductCategoryColumn::ProductId.eq(product_id))
+        let categories = categories::Entity::find()
+            .join(
+                sea_orm::JoinType::InnerJoin,
+                categories::Relation::ProductCategories.def(),
+            )
+            .filter(product_categories::Column::ProductId.eq(product_id))
             .all(executor)
             .await?;
 

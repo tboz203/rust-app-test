@@ -19,7 +19,7 @@ pub enum ApiError {
     Internal(String),
 
     #[error("Validation error: {0}")]
-    Validation(String),
+    Validation(#[from] validator::ValidationErrors),
 
     #[error("Conflict: {0}")]
     Conflict(String),
@@ -35,7 +35,7 @@ impl IntoResponse for ApiError {
             Self::NotFound(ref message) => (StatusCode::NOT_FOUND, message.clone()),
             Self::BadRequest(ref message) => (StatusCode::BAD_REQUEST, message.clone()),
             Self::Internal(ref message) => (StatusCode::INTERNAL_SERVER_ERROR, message.clone()),
-            Self::Validation(ref message) => (StatusCode::UNPROCESSABLE_ENTITY, message.clone()),
+            Self::Validation(ref e) => (StatusCode::UNPROCESSABLE_ENTITY, e.to_string()),
             Self::Conflict(ref message) => (StatusCode::CONFLICT, message.clone()),
             Self::Unauthorized(ref message) => (StatusCode::UNAUTHORIZED, message.clone()),
         };
@@ -69,11 +69,5 @@ impl ApiError {
 
     pub fn internal_server_error(message: impl Into<String>) -> Self {
         Self::Internal(message.into())
-    }
-}
-
-impl From<validator::ValidationErrors> for ApiError {
-    fn from(_errors: validator::ValidationErrors) -> Self {
-        todo!("Convert validation errors to ApiError::Validation");
     }
 }

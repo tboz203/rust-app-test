@@ -5,7 +5,10 @@ use axum::http::{Request, StatusCode};
 use bigdecimal::BigDecimal;
 use tower::ServiceExt;
 
-use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
+use sea_orm::entity::prelude::*;
+use sea_orm::{DatabaseBackend, MockDatabase, Transaction};
+
+use super::common::{cleanup_test_data, create_test_category, create_test_product, initialize};
 use crate::entity::{categories, product_categories, products};
 use crate::models::category::{CategoryListResponse, CategoryResponse, CreateCategoryRequest, UpdateCategoryRequest};
 use crate::models::product::{CreateProductRequest, ProductResponse};
@@ -13,8 +16,7 @@ use crate::models::product::{CreateProductRequest, ProductResponse};
 #[tokio::test]
 async fn test_list_categories() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category1 = create_test_category(&app).await;
@@ -90,8 +92,7 @@ async fn test_list_categories() {
 #[tokio::test]
 async fn test_get_category() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -140,8 +141,7 @@ async fn test_get_category() {
 #[tokio::test]
 async fn test_create_category() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Test create category with valid data
     let request_body = CreateCategoryRequest {
@@ -198,8 +198,7 @@ async fn test_create_category() {
 #[tokio::test]
 async fn test_update_category() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -255,8 +254,7 @@ async fn test_update_category() {
 #[tokio::test]
 async fn test_delete_category() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -313,8 +311,7 @@ async fn test_delete_category() {
 #[tokio::test]
 async fn test_get_category_products() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;

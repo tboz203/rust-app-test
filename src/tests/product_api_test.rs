@@ -6,7 +6,7 @@ use bigdecimal::BigDecimal;
 use tower::ServiceExt;
 
 // Import from common module
-use super::common::{cleanup_test_data, create_test_app, create_test_category, create_test_product, initialize};
+use super::common::{cleanup_test_data, create_test_category, create_test_product, initialize};
 // Import from crate root using the lib.rs exports
 use crate::{
     entity::{categories, product_categories, products},
@@ -19,8 +19,7 @@ use crate::{
 #[tokio::test]
 async fn test_list_products() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -99,8 +98,7 @@ async fn test_list_products() {
 #[tokio::test]
 async fn test_get_product() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -150,8 +148,7 @@ async fn test_get_product() {
 #[tokio::test]
 async fn test_create_product() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test category
     let category = create_test_category(&app).await;
@@ -241,8 +238,7 @@ async fn test_create_product() {
 #[tokio::test]
 async fn test_update_product() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -302,8 +298,7 @@ async fn test_update_product() {
 #[tokio::test]
 async fn test_delete_product() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test data
     let category = create_test_category(&app).await;
@@ -361,8 +356,7 @@ async fn test_delete_product() {
 #[tokio::test]
 async fn test_product_category_many_to_many() {
     // Initialize test environment
-    let pool = initialize().await;
-    let app = create_test_app(pool.clone());
+    let (pool, app) = initialize().await;
 
     // Create test categories
     let category1 = create_test_category(&app).await;

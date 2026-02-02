@@ -42,7 +42,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Run database migrations
     tracing::info!("Running database migrations");
-    db.get_schema_registry("rust_app_test::entity::*").sync(&db).await?;
+    db.get_schema_registry("product_catalog_api::entity::*").sync(&db).await?;
     tracing::info!("Database migrations completed successfully");
 
     // Build our application with routes

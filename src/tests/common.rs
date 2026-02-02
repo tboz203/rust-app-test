@@ -10,6 +10,8 @@ use dotenvy::dotenv;
 use hyper::body::to_bytes;
 use sea_orm::{ColumnTrait, ConnectOptions, Database, DatabaseConnection, DeleteResult, EntityTrait, QueryFilter};
 use tower::ServiceExt;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::config::Config;
 use crate::entity::{categories, product_categories, products};
@@ -23,9 +25,7 @@ use crate::{api, database};
 static INIT: Once = Once::new();
 
 /// Initialize test environment
-pub async fn initialize() -> DatabaseConnection {
-    // Load environment variables
-    dotenv().ok();
+pub async fn initialize() -> (DatabaseConnection, Router) {
 
     // Only run initialization once
     INIT.call_once(|| {
@@ -36,26 +36,12 @@ pub async fn initialize() -> DatabaseConnection {
             .try_init();
     });
 
-    // Get test configuration
-    let config = Config::from_env().expect("Failed to load configuration");
+    let db = Database::connect("sqlite::memory:").await.unwrap();
+    db.get_schema_registry("product_catalog_api::entity::*").sync(&db).await.unwrap();
 
-    // Create database connection using sea-orm
-    let mut opt = ConnectOptions::new(&config.database_url);
-    opt.max_connections(5)
-        .min_connections(1)
-        .connect_timeout(Duration::from_secs(3))
-        .idle_timeout(Duration::from_secs(60));
+    let router = Router::new().nest("/api", api::routes(db.clone()));
 
-    Database::connect(opt)
-        .await
-        .expect("Failed to create database connection")
-}
-
-/// Create a test application
-pub fn create_test_app(db_conn: DatabaseConnection) -> Router {
-    // Use the API routes function directly with the DatabaseConnection
-    // This matches how it's used in the main application
-    Router::new().nest("/api", api::routes(db_conn))
+    (db, router)
 }
 
 /// Create a test category
